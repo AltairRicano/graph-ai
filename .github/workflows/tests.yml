@@ -1,0 +1,54 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.10", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Instalar
+        run: python -m pip install -e ".[test]"
+      - name: Identidad de git para las pruebas de hooks
+        run: |
+          git config --global user.name "CI"
+          git config --global user.email "ci@example.com"
+          git config --global init.defaultBranch main
+      - name: Pruebas
+        run: python -m pytest -q
+
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: ./graph install (POSIX)
+        if: runner.os != 'Windows'
+        run: |
+          ./graph install --bin-dir "$RUNNER_TEMP/bin" --skill-dir "$RUNNER_TEMP/skills"
+          "$RUNNER_TEMP/bin/graph" --version
+          test -f "$RUNNER_TEMP/skills/grafo-ia/SKILL.md"
+          ./graph uninstall --bin-dir "$RUNNER_TEMP/bin" --skill-dir "$RUNNER_TEMP/skills" --purge
+      - name: graph.cmd install (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call graph.cmd install --bin-dir "%RUNNER_TEMP%\bin" --skill-dir "%RUNNER_TEMP%\skills" || exit /b 1
+          call "%RUNNER_TEMP%\bin\graph.cmd" --version || exit /b 1
+          if not exist "%RUNNER_TEMP%\skills\grafo-ia\SKILL.md" exit /b 1

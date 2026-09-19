@@ -1,0 +1,22 @@
+#!/bin/sh
+# Lanzador del repo de grafo_ia.
+#   ./graph install [--skill-dir DIR] ...   instala el comando `graph` (y opcionalmente la skill)
+#   ./graph uninstall [--purge] ...         lo quita
+#   ./graph <cualquier otro comando>        se delega al CLI instalado en .venv
+REPO=$(cd "$(dirname "$0")" && pwd -P)
+case "$1" in
+  install|uninstall)
+    for py in python3 python; do
+      if command -v "$py" >/dev/null 2>&1; then
+        exec "$py" "$REPO/scripts/install.py" "$@"
+      fi
+    done
+    echo "error: se necesita Python 3.10+ en el PATH" >&2
+    exit 2
+    ;;
+esac
+if [ ! -x "$REPO/.venv/bin/graph" ]; then
+  echo "grafo_ia no está instalado: corre ./graph install" >&2
+  exit 2
+fi
+exec "$REPO/.venv/bin/graph" "$@"

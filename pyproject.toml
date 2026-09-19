@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "grafo-ia"
+version = "0.1.0"
+description = "Grafo bidireccional de gemelos markdown para dar contexto a agentes de IA sobre un proyecto de código."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Altair Ricaño" }]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/AltairRicano/graph-ai"
+
+[project.optional-dependencies]
+watch = ["watchdog>=3", "psutil>=5.9"]
+nx = ["networkx>=3.0"]
+test = ["pytest>=7", "watchdog>=3", "psutil>=5.9", "networkx>=3.0"]
+
+[project.scripts]
+graph = "grafo_ia.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+grafo_ia = ["templates/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
