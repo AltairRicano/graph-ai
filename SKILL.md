@@ -1,6 +1,6 @@
 ---
 name: grafo-ia
-description: Grafo bidireccional de gemelos markdown (.graph/) que guarda el contexto de un proyecto de código fuera del código. Úsalo cuando el proyecto tenga una carpeta .graph (o el usuario pida crearla) para leer contexto antes de tocar código (graph get / neighbors / search), para documentar lo que cambiaste en el gemelo y confirmarlo con graph update, y para revisar sincronía con graph status / incomplete.
+description: Grafo bidireccional de gemelos markdown (.graph/) que guarda el contexto de un proyecto de código fuera del código. Úsalo cuando el proyecto tenga una carpeta .graph (o el usuario pida crearla) para leer contexto antes de tocar código (graph get / neighbors / search), para documentar lo que cambiaste en el gemelo y confirmarlo con graph update, y para revisar sincronía con graph status / incomplete. Ojo: para listar el contenido de una carpeta usa siempre `graph get <carpeta>`, nunca `graph neighbors <carpeta>` — los enlaces de un índice son estructurales por diseño y jamás generan arista, así que `neighbors`/`subgraph` sobre una carpeta devuelven 0 aunque el índice tenga archivos.
 ---
 
 # Grafo para IA (`graph`)
@@ -25,7 +25,12 @@ desde ahí (`graph.cmd install` en Windows). Detalles en el README.
 1. **Antes de tocar código**, lee el contexto:
    - `graph get src/pagos/cobro.go` (gemelo completo) o `graph get src/pagos/cobro.go#calcular_total` (una sección).
    - `graph get <ruta> --expand` trae inline el contenido de los vecinos: un solo viaje.
-   - `graph neighbors <ruta>[#sección]` para saber quién depende de qué.
+   - `graph neighbors <ruta>[#sección]` para saber quién depende de qué — **solo sirve sobre
+     archivos de código o documentos, nunca sobre una carpeta**: el índice de una carpeta
+     (`tipo: indice`) lista sus archivos como enlaces estructurales, que por diseño nunca son
+     arista (ver "Qué no hace"), así que `neighbors`/`subgraph` sobre una carpeta siempre
+     devuelven 0 aunque el índice tenga contenido. Para listar lo que hay en una carpeta usa
+     `graph get <carpeta>` en su lugar.
    - `graph search "texto"` o `graph search --filter tipo=decisiones` si no sabes dónde está algo.
    - `graph get Estado_Proyecto/Estado.md` para saber dónde está parado el proyecto.
 2. **Después de cambiar código**, actualiza el gemelo de cada archivo tocado (formato abajo) y confirma:
@@ -120,9 +125,47 @@ Los métodos van como `Clase.metodo`, todos al mismo nivel.
 
 Tras editar uno de ellos, `graph update Estado_Proyecto/<Doc>.md` regenera sus aristas.
 
+### Reportes de agentes (carpeta `agentes/`)
+
+Cuando se lanza una flota de subagentes (Agent tool) en paralelo, cada agente que **audite,
+investigue o reporte hallazgos sin editar código directamente** escribe su propio archivo en
+`agentes/` (carpeta real en la raíz del proyecto, fuera de `.graph`) — nunca un agente
+consolidador que resuma a los demás: se pierde contexto en ese resumen.
+
+Convención de archivo: `agentes/<fecha>_<nombre-agente>_<id-agente>.md`, por ejemplo
+`agentes/2026-09-21_code-reviewer_a3f91c.md`. Frontmatter:
+
+```markdown
+---
+agente: code-reviewer
+id: a3f91c
+fecha: AAAA-MM-DD
+tarea: auditoria
+---
+```
+
+El cuerpo es el contenido pertinente de esa tarea completo (el hallazgo, la auditoría, el
+análisis), no un resumen truncado — la razón de escribirlo en disco en vez de solo devolverlo en
+la respuesta es la misma que para `Estado_Proyecto/`: reportes que se cortan a medias por límite
+de contexto.
+
+Al terminar: `graph add agentes/` (primera vez) y `graph update agentes/<archivo>.md`, como
+cualquier gemelo de código (`tipo: codigo` normal — `agentes/` no usa un tipo especial).
+
+Un agente de **corrección** (que edita un archivo real del proyecto) no necesita este archivo
+extra: le basta con editar el archivo y correr `graph update <ruta>` sobre su propio gemelo — el
+diff y el gemelo actualizado ya documentan el cambio.
+
+`agentes/` es operativo, no producto: cada proyecto que lo use debe agregarlo a su
+`.gitignore`, igual que `.graph/`.
+
 ## Qué no hace
 
 - No escribe contenido de gemelos por sí solo: las cáscaras nacen vacías y el contenido lo escribe el agente o una persona
   (la única excepción es la `fecha_actualizacion` del header, que mueve `graph update`).
 - `remove`, `mv` y `prune` no tocan el código real.
+- No convierte en arista los enlaces `📁 Carpetas`/`📄 Archivos` de un índice: son estructurales
+  por diseño (evita ensuciar `neighbors`/`subgraph` con la obviedad de "este archivo vive en esta
+  carpeta", que ya se lee en la ruta). `graph neighbors`/`graph subgraph` sobre una carpeta
+  devuelven siempre 0 vecinos — usa `graph get <carpeta>` para ver su listado real.
 - `.graph` es un repo git anidado **sin remoto**: personal por máquina, nunca se sube.
