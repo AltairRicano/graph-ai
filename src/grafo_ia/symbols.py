@@ -145,14 +145,16 @@ def touched(rel: str, old: str, new: str) -> Touched | None:
     so, sn = extract(rel, old), extract(rel, new)
     if so is None or sn is None:
         return None
+    old_lines, new_lines = old.splitlines(), new.splitlines()
     changed_old: set[int] = set()
     changed_new: set[int] = set()
-    matcher = difflib.SequenceMatcher(None, old.splitlines(), new.splitlines(), autojunk=False)
+    matcher = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False)
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
             continue
-        changed_old.update(range(i1 + 1, i2 + 1))
-        changed_new.update(range(j1 + 1, j2 + 1))
+        # las líneas en blanco (separación entre funciones) no son un cambio
+        changed_old.update(i + 1 for i in range(i1, i2) if old_lines[i].strip())
+        changed_new.update(j + 1 for j in range(j1, j2) if new_lines[j].strip())
     names_old = {s.name for s in so}
     names_new = {s.name for s in sn}
     t = Touched()

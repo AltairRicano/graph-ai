@@ -80,6 +80,9 @@ def test_touched():
     new = "X = 1\n\n\ndef a():\n    return 1\n\n\ndef b():\n    return 3\n\n\ndef d():\n    pass\n"
     t = symbols.touched("m.py", old, new)
     assert t.modificadas == ["b"] and t.nuevas == ["d"] and t.eliminadas == ["c"] and t.fuera
+    # agregar una función al final con su separación en blanco no es un cambio "fuera de funciones"
+    t = symbols.touched("m.py", "def a():\n    pass\n", "def a():\n    pass\n\n\ndef b():\n    pass\n")
+    assert t.nuevas == ["b"] and not t.fuera
 
 
 def test_incomplete_status_y_update_avisan(initialized, run):
