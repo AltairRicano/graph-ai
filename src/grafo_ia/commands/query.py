@@ -300,10 +300,11 @@ def run_status(args) -> int:
 
     root = root_of(args)
     graph = graph_io.load(root)
-    rep = states.report(root, graph)
+    rep = states.report(root, graph, check_symbols=True)
     print(f"ok: {len(rep.ok)}")
     print(f"desactualizado: {len(rep.desactualizados)}")
     print(f"faltante: {len(rep.faltantes)}")
+    print(f"desalineado: {len(rep.desalineados)}")
     print(f"pendiente por crear: {len(rep.pendientes)}")
     print(f"huérfano: {len(rep.huerfanos)}")
     msg = hooks.head_mismatch(root)

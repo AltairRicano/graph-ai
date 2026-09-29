@@ -5,7 +5,8 @@ como `last_synced_hash` y regenera las aristas del gemelo.
 Documento de Estado_Proyecto (`Estado_Proyecto/Plan.md`): solo regenera aristas.
 En ambos casos mueve `fecha_actualizacion` del header (frontmatter) a hoy; las
 fechas de cada sección son independientes y no se tocan.
-Carpetas no: se confirma archivo por archivo.
+Carpetas no: se confirma archivo por archivo. Si las funciones del código no
+cuadran con los `###` de `## Funciones`, avisa (no bloquea).
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from grafo_ia.errors import GraphError
 from grafo_ia.hashing import hash_file
 from grafo_ia.paths import GRAPH_DIR, resolve_arg, twin_path
 from grafo_ia.rewrite import write_text_atomic
-from grafo_ia.states import twin_has_content
+from grafo_ia.states import alignment, twin_has_content
 
 
 def register(sub) -> None:
@@ -58,4 +59,8 @@ def run(args) -> int:
         print(f"  + {x}")
     for x in sorted(removed):
         print(f"  - {x}")
+    if t.kind == "codigo":
+        a = alignment(root, t.rel, TwinCache(root))
+        if a is not None:
+            print(f"[AVISO] el gemelo no cuadra con las funciones del código ({a.describe()})")
     return 0

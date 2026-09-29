@@ -6,6 +6,8 @@ El estado nunca se guarda: se calcula al vuelo comparando hash y filesystem.
 - desactualizado: el hash actual no coincide con `last_synced_hash`
 - ok: todo lo demás
 `incomplete`, `status` y `pre-commit` usan `report()`, así los números cuadran.
+Con `check_symbols=True` además cruza funciones del código con secciones del gemelo
+(`desalineados`); es un aviso aparte, no un estado.
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from grafo_ia import parser
+from grafo_ia import parser, symbols
 from grafo_ia.edges import Resolver, TwinCache, scan_links
 from grafo_ia.graph_io import Graph
 from grafo_ia.hashing import hash_file
@@ -43,6 +45,7 @@ class Report:
     huerfanos: list[str] = field(default_factory=list)
     ambiguos: list[PendingRef] = field(default_factory=list)
     sin_alias: list[PendingRef] = field(default_factory=list)
+    desalineados: list[symbols.Alignment] = field(default_factory=list)
 
 
 def twin_has_content(cache: TwinCache, node_id: str) -> bool:
@@ -74,7 +77,20 @@ def _in_scope(rel: str | None, scopes: list[str] | None) -> bool:
     return any(is_under(rel, s) for s in scopes)
 
 
-def report(root: Path, graph: Graph, scopes: list[str] | None = None, cache: TwinCache | None = None, links: bool = True) -> Report:
+def alignment(root: Path, rel: str, cache: TwinCache) -> symbols.Alignment | None:
+    """Cruce funciones/secciones de un archivo con gemelo escrito (None si cuadra o no aplica)."""
+    doc = cache.doc(rel + ".md")
+    if doc is None or not symbols.supported(rel):
+        return None
+    try:
+        code = (root / rel).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return symbols.align(rel, code, doc)
+
+
+def report(root: Path, graph: Graph, scopes: list[str] | None = None, cache: TwinCache | None = None,
+           links: bool = True, check_symbols: bool = False) -> Report:
     cache = cache or TwinCache(root)
     rep = Report()
     for node_id in sorted(graph.nodes):
@@ -86,6 +102,10 @@ def report(root: Path, graph: Graph, scopes: list[str] | None = None, cache: Twi
             continue
         state = code_state(root, node, cache)
         {OK: rep.ok, FALTANTE: rep.faltantes, DESACTUALIZADO: rep.desactualizados, HUERFANO: rep.huerfanos}[state].append(rel)
+        if check_symbols and state in (OK, DESACTUALIZADO):
+            a = alignment(root, rel, cache)
+            if a is not None:
+                rep.desalineados.append(a)
     if links:
         resolver = Resolver(graph.nodes)
         for node_id in sorted(graph.nodes):

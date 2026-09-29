@@ -2,7 +2,8 @@
 
 Listas en orden de prioridad: primero los desactualizados (el gemelo existe
 pero ya miente sobre el código), luego los faltantes (vacíos), luego
-pendientes por crear y huérfanos (más enlaces ambiguos y sin texto a
+pendientes por crear y huérfanos (más funciones sin sección o secciones sin
+función, enlaces ambiguos y sin texto a
 mostrar, como aviso). No depende del Watcher. Siempre sale con 0: informa,
 no bloquea.
 """
@@ -23,6 +24,8 @@ def register(sub) -> None:
 def print_report(rep: states.Report) -> None:
     print_list("desactualizados", rep.desactualizados)
     print_list("faltantes", rep.faltantes)
+    if rep.desalineados:
+        print_list("secciones desalineadas con el código", (f"{a.rel}: {a.describe()}" for a in rep.desalineados))
     print_list("pendientes por crear", (f"{p.source}:{p.line} {p.link} ({p.reason})" for p in rep.pendientes))
     print_list("huérfanos", rep.huerfanos)
     if rep.ambiguos:
@@ -37,5 +40,5 @@ def run(args) -> int:
     if scopes and "" in scopes:
         scopes = None
     graph = graph_io.load(root)
-    print_report(states.report(root, graph, scopes))
+    print_report(states.report(root, graph, scopes, check_symbols=True))
     return 0
