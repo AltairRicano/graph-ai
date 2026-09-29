@@ -7,6 +7,9 @@ sin ensuciar el código con comentarios extensos. Inspirado en el grafo de Obsid
 - Los `[[enlaces]]` entre gemelos forman un grafo dirigido en `.graph/index.json` (formato node-link de networkx).
 - La sincronía se detecta por hash del contenido (no por fecha), con cuatro estados: ok, desactualizado, faltante y huérfano.
 - `.graph` es un repo git anidado sin remoto, alineado con el repo de código mediante hooks.
+- `graph update` guarda una instantánea del código confirmado: `graph diff` muestra qué cambió desde
+  entonces y qué funciones tocó, y en Python y Go se avisa cuando las secciones del gemelo ya no cuadran
+  con las funciones del código.
 
 El manual de uso (catálogo de comandos y formatos) está en [SKILL.md](SKILL.md).
 
@@ -56,6 +59,28 @@ graph status
 graph get src/main.go --expand
 # ... escribir el gemelo .graph/src/main.go.md ...
 graph update src/main.go
+# ... más tarde, tras cambiar el código ...
+graph incomplete                  # desactualizados primero, luego faltantes
+graph diff src/main.go --symbols  # qué funciones cambiaron desde el último update
+graph ignore '*.csv'              # sacar del grafo lo que no aporta contexto
+```
+
+## Estructura del repositorio
+
+```
+graph-ai/
+├── .github/workflows/   CI: pruebas e instalador en Linux, macOS y Windows
+├── plantillas/          formatos de escritura: gemelo de código, cada documento de
+│                        Estado_Proyecto y reportes de agentes (un archivo por formato)
+├── scripts/             instalador multiplataforma (install.py)
+├── src/grafo_ia/        paquete Python del CLI: parser, grafo, exclusiones, estados,
+│   │                    instantáneas y cruce de funciones con secciones
+│   ├── commands/        un módulo por subcomando (init, update, diff, ignore, ...)
+│   └── templates/       cáscaras de Estado_Proyecto que crea `graph init`
+├── tests/               pruebas con pytest
+├── graph, graph.cmd     lanzadores del repo (POSIX y Windows)
+├── SKILL.md             manual de uso: flujo, catálogo de comandos y convenciones
+└── pyproject.toml       metadatos del paquete y extras (watch, nx, test)
 ```
 
 ## Pruebas
