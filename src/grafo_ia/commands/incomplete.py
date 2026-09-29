@@ -1,8 +1,10 @@
 """`graph incomplete [<ruta>...]`: chequeo de sincronía bajo demanda.
 
-Cuatro listas: faltantes, desactualizados, pendientes por crear y huérfanos
-(más enlaces ambiguos y sin texto a mostrar, como aviso). No depende del
-Watcher. Siempre sale con 0: informa, no bloquea.
+Listas en orden de prioridad: primero los desactualizados (el gemelo existe
+pero ya miente sobre el código), luego los faltantes (vacíos), luego
+pendientes por crear y huérfanos (más enlaces ambiguos y sin texto a
+mostrar, como aviso). No depende del Watcher. Siempre sale con 0: informa,
+no bloquea.
 """
 
 from __future__ import annotations
@@ -13,14 +15,14 @@ from grafo_ia.paths import to_rel
 
 
 def register(sub) -> None:
-    p = sub.add_parser("incomplete", help="lista faltantes, desactualizados, pendientes por crear y huérfanos")
+    p = sub.add_parser("incomplete", help="lista, por prioridad, desactualizados, faltantes, pendientes por crear y huérfanos")
     p.add_argument("rutas", nargs="*", help="acota a estas rutas")
     p.set_defaults(func=run)
 
 
 def print_report(rep: states.Report) -> None:
-    print_list("faltantes", rep.faltantes)
     print_list("desactualizados", rep.desactualizados)
+    print_list("faltantes", rep.faltantes)
     print_list("pendientes por crear", (f"{p.source}:{p.line} {p.link} ({p.reason})" for p in rep.pendientes))
     print_list("huérfanos", rep.huerfanos)
     if rep.ambiguos:

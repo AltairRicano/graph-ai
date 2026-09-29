@@ -321,3 +321,12 @@ def test_update_fallido_no_toca_la_fecha(initialized, run):
     before = read_twin(initialized, "src/main.go.md")
     assert run(initialized, "update", "src/main.go")[0] == 2
     assert read_twin(initialized, "src/main.go.md") == before
+
+
+def test_incomplete_prioriza_desactualizados(initialized, run):
+    write_twin(initialized, "src/main.go.md", "Punto de entrada.\n")
+    run(initialized, "update", "src/main.go")
+    write(initialized, "src/main.go", "package main\n// cambio\n")
+    code, out = run(initialized, "incomplete")
+    assert code == 0
+    assert out.index("desactualizados (1)") < out.index("faltantes (3)") < out.index("pendientes por crear")

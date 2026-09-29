@@ -242,6 +242,8 @@ def pre_commit(root: Path, argv: list[str]) -> int:
         state = states.code_state(root, node, cache, staged_hash)
         if state in (states.FALTANTE, states.DESACTUALIZADO):
             grave.append(f"{state}: {rel}")
+    # prioridad: desactualizados (el gemelo miente) antes que faltantes (vacíos)
+    grave.sort(key=lambda g: not g.startswith(states.DESACTUALIZADO))
     rep = states.report(root, graph, [rel for rel, _ in staged], cache) if staged else states.Report()
     strict = settings.get_flag(root, "strict")
     if grave:
