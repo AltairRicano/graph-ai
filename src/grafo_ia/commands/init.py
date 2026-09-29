@@ -20,14 +20,15 @@ from grafo_ia.commands import hooks
 from grafo_ia.commands._common import cwd_of, plural
 from grafo_ia.commands.populate import populate
 from grafo_ia.errors import CorruptGraphError, GraphError, NoGraphError
-from grafo_ia.exclusion import EXCLUDE_FILE, Exclusion, suggest, walk
+from grafo_ia.exclusion import EXCLUDE_FILE, Exclusion, norm_rule, suggest, walk
 from grafo_ia.graph_io import SCHEMA_VERSION, index_path
 from grafo_ia.paths import GRAPH_DIR, find_root, graph_dir
 from grafo_ia.reconciliation import reconcile, summary
 
 EXCLUDE_HEADER = (
     "# Exclusiones propias del proyecto, una por línea. Se suman a las de por defecto.\n"
-    "# Nombre suelto = en cualquier nivel (admite comodines); con '/' = desde la raíz.\n"
+    "# Nombre suelto = en cualquier nivel (admite comodines); con '/' = desde la raíz ('/docs' = solo la de la raíz).\n"
+    "# Se editan a mano o con `graph ignore`.\n"
 )
 PREVIEW_LIMIT = 40
 
@@ -98,7 +99,7 @@ def run(args) -> int:
     exclusion = Exclusion(root)
     extra = list(args.exclude)
     if extra:
-        exclusion.user_rules.extend(e.replace("\\", "/").strip("/") for e in extra)
+        exclusion.user_rules.extend(r for r in map(norm_rule, extra) if r)
     scan = walk(root, exclusion)
     suggestions = suggest(scan)
     preview(scan, suggestions)
@@ -120,8 +121,8 @@ def run(args) -> int:
         with open(graph_dir(root) / EXCLUDE_FILE, "a", encoding="utf-8") as f:
             current = set(Exclusion(root).user_rules)
             for e in extra:
-                e = e.replace("\\", "/").strip("/")
-                if e not in current:
+                e = norm_rule(e)
+                if e and e not in current:
                     f.write(e + "\n")
                     current.add(e)
     if index_path(root).exists():

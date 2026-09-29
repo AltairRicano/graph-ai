@@ -57,6 +57,9 @@ SENSITIVE_PATTERNS = [
 
 CRUFT_PATTERNS = [".DS_Store", "Thumbs.db", "desktop.ini", "*.swp", "*.swo", "*.tmp", "*~"]
 
+# carpetas operativas en la raíz del proyecto: nunca se espejan
+OPERATIONAL_ROOT_DIRS = {"agentes": "reportes de agentes (operativo, no producto)"}
+
 SUGGESTED_DIRS = {"coverage", "htmlcov", "logs", "log", "tmp", "temp", "cache", "out", "__snapshots__"}
 LARGE_DIR_THRESHOLD = 300
 BINARY_SNIFF_BYTES = 8192
@@ -69,6 +72,12 @@ class Scan:
     excluded: list[tuple[str, str]] = field(default_factory=list)  # (ruta, razón)
 
 
+def norm_rule(rule: str) -> str:
+    """`\\` -> `/`, sin espacios ni `/` final. Un `/` inicial se conserva: ancla a la raíz."""
+    rule = rule.strip().replace("\\", "/").rstrip("/")
+    return "" if rule.strip("/") == "" else rule
+
+
 def load_user_rules(root: Path) -> list[str]:
     """Reglas de `.graph/exclude`: se releen en cada corrida."""
     p = graph_dir(root) / EXCLUDE_FILE
@@ -78,7 +87,9 @@ def load_user_rules(root: Path) -> list[str]:
     for line in p.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
-            rules.append(line.replace("\\", "/").strip("/"))
+            rule = norm_rule(line)
+            if rule:
+                rules.append(rule)
     return rules
 
 
@@ -129,7 +140,11 @@ class Exclusion:
 
     def _user_rule(self, rel: str, name: str) -> str | None:
         for rule in self.user_rules:
-            if "/" in rule:
+            if rule.startswith("/"):
+                rule_rel = rule.lstrip("/")
+                if rel == rule_rel or rel.startswith(rule_rel + "/") or fnmatch.fnmatchcase(rel, rule_rel):
+                    return rule
+            elif "/" in rule:
                 if rel == rule or rel.startswith(rule + "/") or fnmatch.fnmatchcase(rel, rule):
                     return rule
             elif fnmatch.fnmatchcase(name, rule):
@@ -143,6 +158,8 @@ class Exclusion:
             return EXCLUIR, "carpeta oculta"
         if name in DEPENDENCY_DIRS or name.endswith(".egg-info"):
             return EXCLUIR, "carpeta de dependencias/build"
+        if rel in OPERATIONAL_ROOT_DIRS:
+            return EXCLUIR, OPERATIONAL_ROOT_DIRS[rel]
         rule = self._user_rule(rel, name)
         if rule:
             return EXCLUIR, f".graph/exclude: {rule}"

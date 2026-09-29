@@ -111,5 +111,5 @@ def run(args) -> int:
     code = root / target.rel
     if code.exists() and Exclusion(root).is_included(target.rel):
         print(f"[AVISO] {target.rel} sigue existiendo en el proyecto: la siguiente reconciliación "
-              f"(add/init/watcher) lo regresará como faltante. Para que no vuelva, agrégalo a .graph/exclude.")
+              f"(add/init/watcher) lo regresará como faltante. Para que no vuelva, usa `graph ignore {target.rel}`.")
     return 0
