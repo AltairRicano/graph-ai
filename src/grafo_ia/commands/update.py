@@ -1,7 +1,8 @@
 """`graph update <ruta>`: confirma sincronía de forma consciente.
 
 Código: exige código existente y gemelo con contenido; guarda el hash actual
-como `last_synced_hash` y regenera las aristas del gemelo.
+como `last_synced_hash`, una instantánea del código para `graph diff`
+(`last_synced_blob`, si hay git) y regenera las aristas del gemelo.
 Documento de Estado_Proyecto (`Estado_Proyecto/Plan.md`): solo regenera aristas.
 En ambos casos mueve `fecha_actualizacion` del header (frontmatter) a hoy; las
 fechas de cada sección son independientes y no se tocan.
@@ -11,11 +12,11 @@ cuadran con los `###` de `## Funciones`, avisa (no bloquea).
 
 from __future__ import annotations
 
-from grafo_ia import graph_io, templates
+from grafo_ia import graph_io, snapshots, templates
 from grafo_ia.commands._common import cwd_of, root_of
 from grafo_ia.edges import TwinCache, regenerate
 from grafo_ia.errors import GraphError
-from grafo_ia.hashing import hash_file
+from grafo_ia.hashing import hash_bytes
 from grafo_ia.paths import GRAPH_DIR, resolve_arg, twin_path
 from grafo_ia.rewrite import write_text_atomic
 from grafo_ia.states import alignment, twin_has_content
@@ -42,8 +43,16 @@ def run(args) -> int:
                 raise GraphError(f"{t.rel} ya no existe: su gemelo es huérfano (usa `graph prune` o `graph remove`)")
             if not twin_has_content(cache, t.node_id):
                 raise GraphError(f"el gemelo no existe o está vacío, créalo primero: {GRAPH_DIR}/{t.node_id}")
-            h = hash_file(code)
-            graph.nodes[t.node_id]["last_synced_hash"] = h
+            data = code.read_bytes()
+            h = hash_bytes(data)
+            node = graph.nodes[t.node_id]
+            node["last_synced_hash"] = h
+            old_blob = node.pop(snapshots.ATTR, None)
+            blob = snapshots.save(root, data)
+            if blob:
+                node[snapshots.ATTR] = blob
+            if old_blob != blob:
+                snapshots.release(root, graph, old_blob)
             graph.dirty = True
         added, removed = regenerate(graph, cache, t.node_id)
         text = cache.text(t.node_id)

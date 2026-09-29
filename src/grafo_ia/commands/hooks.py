@@ -36,7 +36,7 @@ def git_available() -> bool:
     return shutil.which("git") is not None
 
 
-def git(cwd: Path, *args: str, check: bool = True, input: str | None = None) -> subprocess.CompletedProcess:
+def git_env(cwd: Path) -> dict:
     env = dict(os.environ)
     if Path(cwd).name == GRAPH_DIR:
         # los hooks corren con GIT_DIR/GIT_INDEX_FILE del repo principal: no deben
@@ -44,6 +44,11 @@ def git(cwd: Path, *args: str, check: bool = True, input: str | None = None) -> 
         # un índice temporal).
         for var in ("GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE", "GIT_PREFIX", "GIT_OBJECT_DIRECTORY"):
             env.pop(var, None)
+    return env
+
+
+def git(cwd: Path, *args: str, check: bool = True, input: str | None = None) -> subprocess.CompletedProcess:
+    env = git_env(cwd)
     return subprocess.run(
         ["git", *args], cwd=str(cwd), check=check, input=input, text=True,
         capture_output=True, env=env, encoding="utf-8", errors="replace",
