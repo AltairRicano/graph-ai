@@ -109,9 +109,11 @@ Códigos de salida: `0` bien, `1` hallazgos que bloquean (pre-commit estricto, d
 Patrones de `ignore` / `.graph/exclude`: nombre suelto = en cualquier nivel (admite comodines,
 `*.csv`); con `/` = desde la raíz (`/generado` es solo la `generado` de la raíz, `src/generado` esa ruta).
 Siempre excluidos: carpetas ocultas (salvo `.github`), dependencias/build, `agentes/` en la raíz,
-archivos sensibles, lockfiles, binarios, documentación (`.md`, `.markdown`, `.rst`, `docs/`, `doc/`),
-licencias (`LICENSE`, `COPYING`, `NOTICE`), pruebas (`tests/`, `test/`, `__tests__/`, `test_*.py`,
-`*_test.py`, `*_test.go`, `*.test.*`, `*.spec.*`) y plantillas (`plantillas/`, `templates/`).
+archivos sensibles, lockfiles y binarios. Además, `graph init` escribe en `.graph/exclude` unas reglas
+iniciales que cada proyecto puede quitar (a mano o con `graph ignore --remove <patrón>`):
+documentación (`*.md`, `*.markdown`, `*.rst`, `docs`, `doc`), licencias (`LICENSE*`, `COPYING*`,
+`NOTICE*`), pruebas (`tests`, `test`, `__tests__`, `test_*.py`, `*_test.py`, `*_test.go`, `*.test.*`,
+`*.spec.*`) y plantillas (`plantillas`, `templates`). Distinguen mayúsculas, como toda regla propia.
 
 ## Estados de un archivo de código
 

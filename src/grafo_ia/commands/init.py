@@ -20,7 +20,7 @@ from grafo_ia.commands import hooks
 from grafo_ia.commands._common import cwd_of, plural
 from grafo_ia.commands.populate import populate
 from grafo_ia.errors import CorruptGraphError, GraphError, NoGraphError
-from grafo_ia.exclusion import EXCLUDE_FILE, Exclusion, norm_rule, suggest, walk
+from grafo_ia.exclusion import EXCLUDE_FILE, INITIAL_RULES, Exclusion, norm_rule, suggest, walk
 from grafo_ia.graph_io import SCHEMA_VERSION, index_path
 from grafo_ia.paths import GRAPH_DIR, find_root, graph_dir
 from grafo_ia.reconciliation import reconcile, summary
@@ -28,8 +28,18 @@ from grafo_ia.reconciliation import reconcile, summary
 EXCLUDE_HEADER = (
     "# Exclusiones propias del proyecto, una por línea. Se suman a las de por defecto.\n"
     "# Nombre suelto = en cualquier nivel (admite comodines); con '/' = desde la raíz ('/generado' = solo la de la raíz).\n"
-    "# Se editan a mano o con `graph ignore`.\n"
+    "# Se editan a mano o con `graph ignore`. Las iniciales de abajo también se pueden quitar.\n"
 )
+
+
+def initial_rules() -> list[str]:
+    return [r for rules in INITIAL_RULES.values() for r in rules]
+
+
+def initial_exclude_text() -> str:
+    """Encabezado más las reglas iniciales, agrupadas por motivo."""
+    groups = "".join(f"\n# {motivo}\n" + "".join(r + "\n" for r in rules) for motivo, rules in INITIAL_RULES.items())
+    return EXCLUDE_HEADER + groups
 PREVIEW_LIMIT = 40
 
 
@@ -38,7 +48,7 @@ def ensure_graph_dir(root, name: str | None) -> tuple[str, str]:
     gdir.mkdir(exist_ok=True)
     ex = gdir / EXCLUDE_FILE
     if not ex.exists():
-        ex.write_text(EXCLUDE_HEADER, encoding="utf-8")
+        ex.write_text(initial_exclude_text(), encoding="utf-8")
     nombre = settings.get_value(root, "nombre")
     if name:
         nombre = name
@@ -97,6 +107,8 @@ def run(args) -> int:
         pass
 
     exclusion = Exclusion(root)
+    if not (graph_dir(root) / EXCLUDE_FILE).exists():
+        exclusion.user_rules.extend(initial_rules())  # la vista previa ya cuenta con las que se van a escribir
     extra = list(args.exclude)
     if extra:
         exclusion.user_rules.extend(r for r in map(norm_rule, extra) if r)

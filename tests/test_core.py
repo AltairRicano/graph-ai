@@ -9,6 +9,7 @@ import pytest
 
 from grafo_ia import parser
 from grafo_ia.errors import AmbiguousError, NotFoundError
+from grafo_ia.commands.init import initial_rules
 from grafo_ia.exclusion import EXCLUIR, GRAFO, INCLUIR, Exclusion, walk
 from grafo_ia.hashing import hash_bytes, hash_file
 
@@ -147,19 +148,6 @@ def test_is_empty():
     ("notas.swp", False, "cruft"),
     (".cache", True, "oculta"),
     ("a#b.py", False, "enlace"),
-    ("README.md", False, "documentación"),
-    ("src/notas.rst", False, "documentación"),
-    ("docs", True, "documentación"),
-    ("LICENSE", False, "licencia"),
-    ("COPYING.txt", False, "licencia"),
-    ("LICENSE-MIT", False, "licencia"),
-    ("tests", True, "pruebas"),
-    ("src/__tests__", True, "pruebas"),
-    ("src/test_cobro.py", False, "prueba"),
-    ("pagos/cobro_test.go", False, "prueba"),
-    ("web/boton.spec.ts", False, "prueba"),
-    ("plantillas", True, "plantillas"),
-    ("app/Templates", True, "plantillas"),
 ])
 def test_ejes_de_exclusion(tmp_path, rel, is_dir, reason):
     verdict, why = Exclusion(tmp_path).check(rel, is_dir)
@@ -174,8 +162,27 @@ def test_excepciones_graph_y_github(tmp_path):
     assert ex.check(".graph/src/a.md", False)[0] == GRAFO
 
 
-def test_codigo_con_nombre_parecido_entra(tmp_path):
+def _con_reglas_iniciales(tmp_path) -> Exclusion:
     ex = Exclusion(tmp_path, sniff_binary=False)
+    ex.user_rules.extend(initial_rules())
+    return ex
+
+
+@pytest.mark.parametrize("rel,is_dir", [
+    ("README.md", False), ("src/notas.rst", False), ("docs", True),
+    ("LICENSE", False), ("COPYING.txt", False), ("LICENSE-MIT", False),
+    ("tests", True), ("src/__tests__", True), ("src/test_cobro.py", False),
+    ("pagos/cobro_test.go", False), ("web/boton.spec.ts", False),
+    ("plantillas", True), ("app/templates", True),
+])
+def test_reglas_iniciales(tmp_path, rel, is_dir):
+    verdict, why = _con_reglas_iniciales(tmp_path).check(rel, is_dir)
+    assert verdict == EXCLUIR and why.startswith(".graph/exclude")
+    assert Exclusion(tmp_path).check(rel, is_dir)[0] == INCLUIR  # no son fijas
+
+
+def test_codigo_con_nombre_parecido_entra(tmp_path):
+    ex = _con_reglas_iniciales(tmp_path)
     for rel in ("src/license.py", "src/notice.go", "src/testing.py", "src/contest.py", "src/docs.py"):
         assert ex.check(rel, False)[0] == INCLUIR, rel
 

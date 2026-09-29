@@ -27,9 +27,7 @@ from grafo_ia.states import twin_has_content
 
 DEFAULTS = (
     "carpetas ocultas (salvo .github), dependencias/build (node_modules, dist, venv, ...), "
-    "agentes/ en la raíz, archivos sensibles (.env, llaves), lockfiles, cruft de editor, binarios, "
-    "documentación (.md, .rst, docs/), licencias, pruebas (tests/, test_*.py, *_test.go, *.spec.*) "
-    "y plantillas (plantillas/, templates/)"
+    "agentes/ en la raíz, archivos sensibles (.env, llaves), lockfiles, cruft de editor y binarios"
 )
 
 
@@ -70,6 +68,8 @@ def _list(root: Path) -> int:
     for r in rules:
         print(f"  {r}")
     print(f"por defecto (siempre): {DEFAULTS}")
+    print("documentación, licencias, pruebas y plantillas son reglas propias que `graph init` escribe al crear "
+          ".graph/exclude: se quitan con `graph ignore --remove <patrón>`")
     return 0
 
 

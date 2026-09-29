@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from grafo_ia.exclusion import load_user_rules
+
 from conftest import assert_sano, load, write, write_twin
 
 
@@ -72,3 +74,21 @@ def test_ignore_lista(initialized, run):
     code, out = run(initialized, "ignore")
     assert code == 0 and "features" in out and "agentes/" in out
     assert run(initialized, "ignore", "--remove")[0] == 2
+
+
+def test_reglas_iniciales_se_escriben_y_se_pueden_quitar(project, run):
+    write(project, "docs/guia.md", "guía\n")
+    write(project, "tests/ayudas.py", "def armar(): pass\n")
+    assert run(project, "init", "--yes", "--no-git")[0] == 0
+    exclude = (project / ".graph/exclude").read_text(encoding="utf-8")
+    assert "*.md" in exclude and "tests" in exclude and "LICENSE*" in exclude
+    nodes = load(project).nodes
+    assert "docs/guia.md.md" not in nodes and "tests/ayudas.py.md" not in nodes
+    code, out = run(project, "ignore", "--remove", "tests")
+    assert code == 0, out
+    nodes = load(project).nodes
+    assert "tests/ayudas.py.md" in nodes and "docs/guia.md.md" not in nodes
+    assert "tests" not in load_user_rules(project)
+    assert run(project, "init", "--yes", "--no-git")[0] == 0  # reinicializar no la vuelve a poner
+    assert "tests" not in load_user_rules(project)
+    assert_sano(project)
