@@ -128,6 +128,8 @@ en `## Funciones`, o un `###` cuya función ya no existe. Otros lenguajes no se 
 
 ## Convenciones de escritura (obligatorias)
 
+- **Cada función (`###`) dice qué hace y por qué existe** a nivel de lógica de negocio: el porqué es
+  lo que el código no dice y lo que más vale del gemelo (detalle en `plantillas/gemelo_codigo.md`).
 - **Todo enlace lleva texto a mostrar:** `[[src/db.go.md#conectar|conectar]]`. La forma canónica es el id
   completo (ruta dentro de `.graph`, con `.md`). También se acepta sin `.md` o solo el final de la ruta si es único.
 - **Nunca edites las listas `📁 Carpetas` / `📄 Archivos` de un índice**: las mantiene `populate`.

@@ -15,8 +15,15 @@ archivo ya está en el grafo, la cáscara (solo frontmatter) ya existe.
   puede llevar backticks o paréntesis (`` `calcular_total()` ``): se compara solo el nombre.
 - Cada `###` lleva su línea `**Elaboración:** | **Actualización:**`. La de Actualización la mueves
   tú cuando cambias esa sección; `graph update` solo mueve la `fecha_actualizacion` del frontmatter.
-- Mínima si la función es trivial; específica y con enlaces a las funciones relacionadas si es
-  lógica de negocio.
+- **Cada `###` responde dos preguntas, siempre las dos:**
+  - **Qué hace:** el comportamiento en una o dos frases, sin parafrasear el código línea por línea
+    (eso el agente ya lo lee en el archivo).
+  - **Por qué existe:** la razón de negocio o del dominio que la hace necesaria: qué regla, caso o
+    restricción resuelve, qué pasaría sin ella, y por qué funciona así y no de la forma obvia. Es lo
+    que el código no dice y lo más valioso del gemelo. Si la función es pura plomería (un getter, un
+    adaptador), dilo en una línea y enlaza a la función de negocio a la que sirve.
+- Largo según la función: mínima si es trivial; específica y con enlaces a las funciones relacionadas
+  si es lógica de negocio.
 - Al poner al día un gemelo desactualizado, `graph diff <ruta> --symbols` dice qué funciones
   cambiaron (modificadas, nuevas, eliminadas): son las secciones a revisar.
 - Al terminar: `graph update <ruta>`.
@@ -38,11 +45,18 @@ Descripción corta pero detallada de por qué existe el archivo.
 ### calcular_total
 **Elaboración:** AAAA-MM-DD | **Actualización:** AAAA-MM-DD
 
-Mínima si es trivial; específica y con enlaces a las funciones relacionadas si es lógica de negocio,
-por ejemplo [[src/pagos/descuentos.go.md#aplicar_descuento|aplicar_descuento]].
+**Qué hace:** suma los renglones del carrito, aplica
+[[src/pagos/descuentos.go.md#aplicar_descuento|aplicar_descuento]] y después el impuesto.
+
+**Por qué existe:** el total que ve el cliente tiene que coincidir con el de la factura, y el
+descuento va antes del impuesto porque así lo exige la facturación; hacerlo al revés deja
+diferencias de centavos que la factura rechaza.
 
 ### Carrito.agregar
 **Elaboración:** AAAA-MM-DD | **Actualización:** AAAA-MM-DD
 
-Los métodos van como `Clase.metodo`, todos al mismo nivel.
+**Qué hace:** agrega un producto o suma la cantidad si ya estaba.
+
+**Por qué existe:** plomería de [[#calcular_total|calcular_total]]: evita
+renglones repetidos del mismo producto. Los métodos van como `Clase.metodo`, todos al mismo nivel.
 ```
