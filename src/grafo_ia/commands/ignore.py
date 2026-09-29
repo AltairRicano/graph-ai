@@ -27,14 +27,16 @@ from grafo_ia.states import twin_has_content
 
 DEFAULTS = (
     "carpetas ocultas (salvo .github), dependencias/build (node_modules, dist, venv, ...), "
-    "agentes/ en la raíz, archivos sensibles (.env, llaves), lockfiles, cruft de editor y binarios"
+    "agentes/ en la raíz, archivos sensibles (.env, llaves), lockfiles, cruft de editor, binarios, "
+    "documentación (.md, .rst, docs/), licencias, pruebas (tests/, test_*.py, *_test.go, *.spec.*) "
+    "y plantillas (plantillas/, templates/)"
 )
 
 
 def register(sub) -> None:
     p = sub.add_parser("ignore", help="agrega o quita exclusiones (.graph/exclude) y ajusta el grafo")
     p.add_argument("patrones", nargs="*", metavar="patrón",
-                   help="nombre suelto = en cualquier nivel (admite comodines); con '/' = desde la raíz ('/docs')")
+                   help="nombre suelto = en cualquier nivel (admite comodines); con '/' = desde la raíz ('/generado')")
     p.add_argument("--remove", action="store_true", help="quita las reglas en vez de agregarlas")
     p.add_argument("--force", action="store_true", help="permite borrar gemelos con contenido")
     p.set_defaults(func=run)

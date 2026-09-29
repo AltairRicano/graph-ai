@@ -57,13 +57,13 @@ def test_ignore_remove_regresa_lo_excluido(initialized, run):
 
 
 def test_ignore_anclado_a_la_raiz(initialized, run):
-    write(initialized, "docs/a.md", "a\n")
-    write(initialized, "src/docs/b.md", "b\n")
+    write(initialized, "generado/a.py", "a\n")
+    write(initialized, "src/generado/b.py", "b\n")
     run(initialized, "add")
-    code, out = run(initialized, "ignore", "/docs")
+    code, out = run(initialized, "ignore", "/generado")
     assert code == 0, out
     nodes = load(initialized).nodes
-    assert "docs/a.md.md" not in nodes and "src/docs/b.md.md" in nodes
+    assert "generado/a.py.md" not in nodes and "src/generado/b.py.md" in nodes
     assert_sano(initialized)
 
 

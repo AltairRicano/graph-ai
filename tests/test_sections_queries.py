@@ -31,9 +31,9 @@ Algo.
 def linked(initialized, run):
     root = initialized
     write_twin(root, "src/main.go.md", MAIN_TWIN)
-    write_twin(root, "README.md.md", "Ver [[src/main.go.md#helper|el helper]] y [[src/main.go.md#helper]].\n")
+    write_twin(root, "Makefile.md", "Ver [[src/main.go.md#helper|el helper]] y [[src/main.go.md#helper]].\n")
     write_twin(root, "src/features/login.go.md", "## login\nLlama a [[src/main.go.md#framework_web|FastAPI]] y [[src/main.go.md#main|main]].\n")
-    for rel in ("src/main.go", "README.md", "src/features/login.go"):
+    for rel in ("src/main.go", "Makefile", "src/features/login.go"):
         code, out = run(root, "update", rel)
         assert code == 0, out
     return root
@@ -43,13 +43,13 @@ def linked(initialized, run):
 def test_rename_alias_y_sin_alias(linked, run):
     code, out = run(linked, "rename", "src/main.go#helper", "ayudante")
     assert code == 0, out
-    readme = read_twin(linked, "README.md.md")
+    readme = read_twin(linked, "Makefile.md")
     assert "[[src/main.go.md#ayudante|el helper]]" in readme  # alias conservado
     assert "[[src/main.go.md#ayudante]]" in readme  # sin alias: el texto visible sigue al nombre nuevo
     main = read_twin(linked, "src/main.go.md")
     assert "### ayudante\n" in main and "### helper\n" not in main
     assert "[[#ayudante|helper]]" in main and "[[#ayudante]]" in main  # enlaces internos
-    assert "README.md.md" in out and "src/main.go.md" in out
+    assert "Makefile.md" in out and "src/main.go.md" in out
 
 
 def test_rename_snake_legible_completo(linked, run):
@@ -72,7 +72,7 @@ def test_rename_links_only(linked, run):
     p.write_text(p.read_text().replace("### helper\n", "### ayudante\n"), encoding="utf-8")
     code, out = run(linked, "rename", "src/main.go#helper", "ayudante", "--links-only")
     assert code == 0, out
-    assert "[[src/main.go.md#ayudante|el helper]]" in read_twin(linked, "README.md.md")
+    assert "[[src/main.go.md#ayudante|el helper]]" in read_twin(linked, "Makefile.md")
     # sin --links-only se rechaza porque el viejo ya no existe
     assert run(linked, "rename", "src/main.go#helper", "otro")[0] == 2
 
@@ -87,27 +87,27 @@ def test_rename_no_toca_aristas_ni_hash(linked, run):
 def test_rename_fallo_antes_de_escribir_no_deja_nada(linked, run, monkeypatch):
     from grafo_ia.commands import rename
 
-    readme_before = read_twin(linked, "README.md.md")
+    readme_before = read_twin(linked, "Makefile.md")
     monkeypatch.setattr(rename, "rewrite_links", lambda *a: (_ for _ in ()).throw(RuntimeError("fallo")))
     with pytest.raises(RuntimeError):
         run(linked, "rename", "src/main.go#helper", "ayudante")
-    assert read_twin(linked, "README.md.md") == readme_before
+    assert read_twin(linked, "Makefile.md") == readme_before
     assert "### helper" in read_twin(linked, "src/main.go.md")
 
 
 # ---- relate ------------------------------------------------------------------
 def test_relate(linked, run):
-    code, out = run(linked, "relate", "README.md", "src/main.go")
+    code, out = run(linked, "relate", "Makefile", "src/main.go")
     assert code == 0 and "conoce" in out
-    assert run(linked, "relate", "README.md", "src/main.go", "--add", "utiliza")[0] == 0
-    assert run(linked, "relate", "README.md", "src/main.go", "--remove", "conoce")[0] == 0
-    assert load(linked).relations("README.md.md", "src/main.go.md") == ["utiliza"]
-    assert run(linked, "relate", "README.md", "src/main.go", "--remove", "utiliza")[0] == 2  # quedaría vacía
-    assert run(linked, "relate", "README.md", "src/main.go", "--add", "inventada")[0] == 2
-    assert run(linked, "relate", "src/main.go", "README.md")[0] == 2  # arista inexistente
+    assert run(linked, "relate", "Makefile", "src/main.go", "--add", "utiliza")[0] == 0
+    assert run(linked, "relate", "Makefile", "src/main.go", "--remove", "conoce")[0] == 0
+    assert load(linked).relations("Makefile.md", "src/main.go.md") == ["utiliza"]
+    assert run(linked, "relate", "Makefile", "src/main.go", "--remove", "utiliza")[0] == 2  # quedaría vacía
+    assert run(linked, "relate", "Makefile", "src/main.go", "--add", "inventada")[0] == 2
+    assert run(linked, "relate", "src/main.go", "Makefile")[0] == 2  # arista inexistente
     # sobreviven a una regeneración
-    run(linked, "update", "README.md")
-    assert load(linked).relations("README.md.md", "src/main.go.md") == ["utiliza"]
+    run(linked, "update", "Makefile")
+    assert load(linked).relations("Makefile.md", "src/main.go.md") == ["utiliza"]
     assert_sano(linked)
 
 
@@ -132,23 +132,23 @@ def test_config_strict(initialized, run):
 # ---- regeneración de aristas ---------------------------------------------------
 def test_regeneracion(linked, run):
     g = load(linked)
-    assert g.relations("README.md.md", "src/main.go.md") == ["conoce"]
-    run(linked, "relate", "README.md", "src/main.go", "--add", "utiliza")
-    h = g.nodes["README.md.md"]["last_synced_hash"]
-    p = twin_path(linked, "README.md.md")
+    assert g.relations("Makefile.md", "src/main.go.md") == ["conoce"]
+    run(linked, "relate", "Makefile", "src/main.go", "--add", "utiliza")
+    h = g.nodes["Makefile.md"]["last_synced_hash"]
+    p = twin_path(linked, "Makefile.md")
     p.write_text(p.read_text() + "Y [[src/features/login.go.md|login]]\n", encoding="utf-8")
     from grafo_ia.edges import TwinCache, regenerate
 
     with graph_io.transaction(linked) as g2:
-        added, removed = regenerate(g2, TwinCache(linked), "README.md.md")
+        added, removed = regenerate(g2, TwinCache(linked), "Makefile.md")
     assert added == {"src/features/login.go.md"} and not removed
     g3 = load(linked)
-    assert g3.relations("README.md.md", "src/features/login.go.md") == ["conoce"]
-    assert g3.relations("README.md.md", "src/main.go.md") == ["conoce", "utiliza"]
-    assert g3.nodes["README.md.md"]["last_synced_hash"] == h  # regenerar no toca el hash
+    assert g3.relations("Makefile.md", "src/features/login.go.md") == ["conoce"]
+    assert g3.relations("Makefile.md", "src/main.go.md") == ["conoce", "utiliza"]
+    assert g3.nodes["Makefile.md"]["last_synced_hash"] == h  # regenerar no toca el hash
     p.write_text("---\ntipo: codigo\n---\nnada\n", encoding="utf-8")
-    run(linked, "update", "README.md")
-    assert not load(linked).adj_out["README.md.md"]
+    run(linked, "update", "Makefile")
+    assert not load(linked).adj_out["Makefile.md"]
 
 
 # ---- consultas ---------------------------------------------------------------
@@ -156,31 +156,31 @@ def test_get_seccion_y_expand(linked, run):
     code, out = run(linked, "get", "src/main.go#helper")
     assert code == 0 and out.startswith("==> src/main.go.md#helper <==") and "Ayuda." in out
     assert "Arranca todo" not in out
-    code, out = run(linked, "get", "README.md", "--expand")
+    code, out = run(linked, "get", "Makefile", "--expand")
     assert "==> src/main.go.md#helper (saliente: conoce) <==" in out and "Ayuda." in out
 
 
 def test_neighbors(linked, run):
     code, out = run(linked, "neighbors", "src/main.go")
-    assert "<- README.md.md" in out and "<- src/features/login.go.md" in out
+    assert "<- Makefile.md" in out and "<- src/features/login.go.md" in out
     code, out = run(linked, "neighbors", "src/main.go#helper", "--in")
-    assert "README.md.md" in out and "login.go.md" not in out  # solo lo que apunta a esa sección
+    assert "Makefile.md" in out and "login.go.md" not in out  # solo lo que apunta a esa sección
     code, out = run(linked, "neighbors", "src/features/login.go#login", "--out")
     assert "-> src/main.go.md" in out
 
 
 def test_subgraph_profundidad_y_ciclos(linked, run):
-    write_twin(linked, "src/features/pagos/cobro.go.md", "[[README.md.md|r]]\n")
+    write_twin(linked, "src/features/pagos/cobro.go.md", "[[Makefile.md|r]]\n")
     write_twin(linked, "src/main.go.md", MAIN_TWIN + "\n[[src/features/pagos/cobro.go.md|c]]\n")
     run(linked, "update", "src/features/pagos/cobro.go")
     run(linked, "update", "src/main.go")
-    out0 = run(linked, "subgraph", "README.md", "--depth", "0")[1]
+    out0 = run(linked, "subgraph", "Makefile", "--depth", "0")[1]
     assert "nodos (1)" in out0
-    out1 = run(linked, "subgraph", "README.md", "--depth", "1")[1]
+    out1 = run(linked, "subgraph", "Makefile", "--depth", "1")[1]
     assert "src/main.go.md" in out1
-    code, outn = run(linked, "subgraph", "README.md", "--depth", "10", "--json")
+    code, outn = run(linked, "subgraph", "Makefile", "--depth", "10", "--json")
     data = json.loads(outn)
-    assert {n["id"] for n in data["nodes"]} >= {"README.md.md", "src/main.go.md", "src/features/pagos/cobro.go.md"}
+    assert {n["id"] for n in data["nodes"]} >= {"Makefile.md", "src/main.go.md", "src/features/pagos/cobro.go.md"}
 
 
 def test_get_depth_ida_y_vuelta_por_secciones_distintas(initialized, run):
@@ -226,7 +226,7 @@ def test_search(linked, run):
 
 
 def test_status_cuadra_con_incomplete(linked, run):
-    write_twin(linked, "README.md.md", "futuro [[src/nada.go.md|nada]]\n")
+    write_twin(linked, "Makefile.md", "futuro [[src/nada.go.md|nada]]\n")
     (linked / "src/features/login.go").unlink()
     status = dict(l.split(": ", 1) for l in run(linked, "status")[1].splitlines() if ": " in l and not l.startswith("["))
     inc = run(linked, "incomplete")[1]

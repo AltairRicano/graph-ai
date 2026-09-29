@@ -107,9 +107,11 @@ Lleva registro de lo que ya leíste por **sección** (`ruta#sección`), no solo 
 Códigos de salida: `0` bien, `1` hallazgos que bloquean (pre-commit estricto, doctor), `2` error de uso o precondición.
 
 Patrones de `ignore` / `.graph/exclude`: nombre suelto = en cualquier nivel (admite comodines,
-`*.csv`); con `/` = desde la raíz (`/docs` es solo la `docs` de la raíz, `src/generado` esa ruta).
-Siempre excluidos: carpetas ocultas, dependencias/build, `agentes/` en la raíz, archivos sensibles,
-lockfiles y binarios.
+`*.csv`); con `/` = desde la raíz (`/generado` es solo la `generado` de la raíz, `src/generado` esa ruta).
+Siempre excluidos: carpetas ocultas (salvo `.github`), dependencias/build, `agentes/` en la raíz,
+archivos sensibles, lockfiles, binarios, documentación (`.md`, `.markdown`, `.rst`, `docs/`, `doc/`),
+licencias (`LICENSE`, `COPYING`, `NOTICE`), pruebas (`tests/`, `test/`, `__tests__/`, `test_*.py`,
+`*_test.py`, `*_test.go`, `*.test.*`, `*.spec.*`) y plantillas (`plantillas/`, `templates/`).
 
 ## Estados de un archivo de código
 

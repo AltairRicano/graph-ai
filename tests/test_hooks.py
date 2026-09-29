@@ -66,10 +66,10 @@ def test_pre_commit_usa_lo_staged(repo, run):
     run(repo, "update", "src/main.go")
     run(repo, "config", "strict", "on")
     write(repo, "src/main.go", "package main\n// en disco, sin stagear\n")
-    write(repo, "README.md", "# otro\n")
-    write_twin(repo, "README.md.md", "readme\n")
-    run(repo, "update", "README.md")
-    git(repo, "add", "README.md")
+    write(repo, "Makefile", "# otro\n")
+    write_twin(repo, "Makefile.md", "readme\n")
+    run(repo, "update", "Makefile")
+    git(repo, "add", "Makefile")
     # main.go cambió en disco pero no está staged: no cuenta
     assert git(repo, "commit", "-qm", "readme", check=False).returncode == 0
 

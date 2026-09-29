@@ -39,7 +39,7 @@ def test_carpeta_con_archivo_homonimo(project, run):
     assert run(project, "init", "--yes", "--no-git")[0] == 0
     g = load(project)
     assert g.tipo("src/features/features.md") == "indice"
-    assert g.tipo("src/features/features.md.md") == "codigo"
+    assert "src/features/features.md.md" not in g.nodes  # documentación: no entra
     assert run(project, "doctor")[0] == 0
 
 
@@ -106,6 +106,6 @@ def test_enlaces_ambiguos_se_reportan(initialized, run):
     write(initialized, "a/util.py")
     write(initialized, "b/util.py")
     run(initialized, "add")
-    write_twin(initialized, "README.md.md", "[[util.py.md|util]]\n")
+    write_twin(initialized, "Makefile.md", "[[util.py.md|util]]\n")
     out = run(initialized, "incomplete")[1]
     assert "ambiguo" in out

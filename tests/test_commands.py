@@ -19,7 +19,7 @@ def _states(run, root):
 def test_estados(initialized, run):
     root = initialized
     s = _states(run, root)
-    assert s["faltante"] == "4" and s["ok"] == "0"  # README, main.go, login.go, cobro.go
+    assert s["faltante"] == "4" and s["ok"] == "0"  # Makefile, main.go, login.go, cobro.go
     # gemelo con solo frontmatter sigue faltante
     assert run(root, "update", "src/main.go")[0] == 2
     write_twin(root, "src/main.go.md", "Punto de entrada.\n")
@@ -135,15 +135,15 @@ def test_borrar_codigo_vacio_quita_nodo_con_contenido_huerfano(initialized, run)
 
 def test_movimiento_escapado_por_hash(initialized, run):
     write_twin(initialized, "src/main.go.md", "principal\n")
-    write_twin(initialized, "README.md.md", "ver [[src/main.go.md|main]]\n")
+    write_twin(initialized, "Makefile.md", "ver [[src/main.go.md|main]]\n")
     run(initialized, "update", "src/main.go")
-    run(initialized, "update", "README.md")
+    run(initialized, "update", "Makefile")
     (initialized / "src/main.go").rename(initialized / "src/app.go")
     code, out = run(initialized, "add")
     assert code == 0, out
     g = load(initialized)
     assert "src/app.go.md" in g.nodes and "src/main.go.md" not in g.nodes
-    assert "[[src/app.go.md|main]]" in read_twin(initialized, "README.md.md")
+    assert "[[src/app.go.md|main]]" in read_twin(initialized, "Makefile.md")
     assert g.nodes["src/app.go.md"]["last_synced_hash"]
     assert_sano(initialized)
 
@@ -161,23 +161,23 @@ def test_movimiento_no_uno_a_uno_no_adivina(initialized, run):
 
 
 def test_pendiente_se_vuelve_arista_al_nacer(initialized, run):
-    write_twin(initialized, "README.md.md", "futuro: [[src/pago.go.md|pago]]\n")
-    run(initialized, "update", "README.md")
+    write_twin(initialized, "Makefile.md", "futuro: [[src/pago.go.md|pago]]\n")
+    run(initialized, "update", "Makefile")
     code, out = run(initialized, "incomplete")
     assert "src/pago.go.md" in out
     write(initialized, "src/pago.go", "package x\n")
     run(initialized, "add", "src")
-    assert load(initialized).relations("README.md.md", "src/pago.go.md") == ["conoce"]
+    assert load(initialized).relations("Makefile.md", "src/pago.go.md") == ["conoce"]
 
 
 # ---- remove / prune ---------------------------------------------------------------
 def test_remove_archivo_limpia_enlaces_y_aristas(initialized, run):
-    write_twin(initialized, "README.md.md", "usa [[src/main.go.md#main|la entrada]] y `[[src/main.go.md|x]]`\n")
-    run(initialized, "update", "README.md")
+    write_twin(initialized, "Makefile.md", "usa [[src/main.go.md#main|la entrada]] y `[[src/main.go.md|x]]`\n")
+    run(initialized, "update", "Makefile")
     code, out = run(initialized, "remove", "src/main.go")
     assert code == 0, out
-    assert "README.md.md" in out and "sigue existiendo" in out
-    text = read_twin(initialized, "README.md.md")
+    assert "Makefile.md" in out and "sigue existiendo" in out
+    text = read_twin(initialized, "Makefile.md")
     assert "usa la entrada y `[[src/main.go.md|x]]`" in text  # el código inline no se toca
     g = load(initialized)
     assert "src/main.go.md" not in g.nodes
@@ -205,8 +205,8 @@ def test_remove_rechaza_gemelo_e_indice(initialized, run):
 def test_prune_solo_huerfanos_y_acotado(initialized, run):
     write_twin(initialized, "src/main.go.md", "a\n")
     write_twin(initialized, "src/features/login.go.md", "b [[src/futuro.go.md|futuro]]\n")
-    write_twin(initialized, "README.md.md", "ver [[src/main.go.md|main]]\n")
-    run(initialized, "update", "README.md")
+    write_twin(initialized, "Makefile.md", "ver [[src/main.go.md|main]]\n")
+    run(initialized, "update", "Makefile")
     (initialized / "src/main.go").unlink()
     (initialized / "src/features/login.go").unlink()
     code, out = run(initialized, "prune", "src/features")
@@ -217,45 +217,45 @@ def test_prune_solo_huerfanos_y_acotado(initialized, run):
     run(initialized, "prune")
     g = load(initialized)
     assert "src/main.go.md" not in g.nodes
-    assert "ver main" in read_twin(initialized, "README.md.md")
+    assert "ver main" in read_twin(initialized, "Makefile.md")
     assert "src/features/pagos/cobro.go.md" in g.nodes  # no huérfano
     assert_sano(initialized)
 
 
 # ---- mv ------------------------------------------------------------------------------
 def test_mv_tabla_de_reescritura(initialized, run):
-    write_twin(initialized, "README.md.md", (
+    write_twin(initialized, "Makefile.md", (
         "a [[src/main.go.md#Function|texto]]\n"
         "b [[src/main.go.md|sin seccion]]\n"
         "c [[src/main.go]]\n"
         "d [[src/main.go.md#Otra|x]] y [[src/main.go.md#Otra|y]]\n"
         "e [[main.go.md|corta]]\n"
     ))
-    run(initialized, "update", "README.md")
+    run(initialized, "update", "Makefile")
     code, out = run(initialized, "mv", "src/main.go", "src/headless.go")
     assert code == 0, out
-    text = read_twin(initialized, "README.md.md")
+    text = read_twin(initialized, "Makefile.md")
     assert "[[src/headless.go.md#Function|texto]]" in text
     assert "[[src/headless.go.md|sin seccion]]" in text
     assert "c [[src/headless.go]]" in text
     assert "[[src/headless.go.md#Otra|x]] y [[src/headless.go.md#Otra|y]]" in text
     assert "[[headless.go.md|corta]]" in text
     g = load(initialized)
-    assert g.relations("README.md.md", "src/headless.go.md") == ["conoce"]
+    assert g.relations("Makefile.md", "src/headless.go.md") == ["conoce"]
     assert twin_path(initialized, "src/headless.go.md").exists()
     assert not twin_path(initialized, "src/main.go.md").exists()
     assert_sano(initialized)
 
 
 def test_mv_carpeta_con_descendientes(initialized, run):
-    write_twin(initialized, "README.md.md", "[[src/features/features.md|features]] [[src/features/pagos/cobro.go.md#c|c]]\n")
-    run(initialized, "update", "README.md")
+    write_twin(initialized, "Makefile.md", "[[src/features/features.md|features]] [[src/features/pagos/cobro.go.md#c|c]]\n")
+    run(initialized, "update", "Makefile")
     code, out = run(initialized, "mv", "src/features", "src/modulos")
     assert code == 0, out
     g = load(initialized)
     assert {"src/modulos/modulos.md", "src/modulos/login.go.md", "src/modulos/pagos/pagos.md", "src/modulos/pagos/cobro.go.md"} <= set(g.nodes)
     assert not any(n.startswith("src/features") for n in g.nodes)
-    text = read_twin(initialized, "README.md.md")
+    text = read_twin(initialized, "Makefile.md")
     assert "[[src/modulos/modulos.md|features]]" in text and "[[src/modulos/pagos/cobro.go.md#c|c]]" in text
     assert twin_path(initialized, "src/modulos/modulos.md").exists()
     assert_sano(initialized)

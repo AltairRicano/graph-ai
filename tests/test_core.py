@@ -147,6 +147,19 @@ def test_is_empty():
     ("notas.swp", False, "cruft"),
     (".cache", True, "oculta"),
     ("a#b.py", False, "enlace"),
+    ("README.md", False, "documentación"),
+    ("src/notas.rst", False, "documentación"),
+    ("docs", True, "documentación"),
+    ("LICENSE", False, "licencia"),
+    ("COPYING.txt", False, "licencia"),
+    ("LICENSE-MIT", False, "licencia"),
+    ("tests", True, "pruebas"),
+    ("src/__tests__", True, "pruebas"),
+    ("src/test_cobro.py", False, "prueba"),
+    ("pagos/cobro_test.go", False, "prueba"),
+    ("web/boton.spec.ts", False, "prueba"),
+    ("plantillas", True, "plantillas"),
+    ("app/Templates", True, "plantillas"),
 ])
 def test_ejes_de_exclusion(tmp_path, rel, is_dir, reason):
     verdict, why = Exclusion(tmp_path).check(rel, is_dir)
@@ -159,6 +172,12 @@ def test_excepciones_graph_y_github(tmp_path):
     assert ex.check(".github/workflows/ci.yml", False)[0] == INCLUIR
     assert ex.check(".graph", True)[0] == GRAFO
     assert ex.check(".graph/src/a.md", False)[0] == GRAFO
+
+
+def test_codigo_con_nombre_parecido_entra(tmp_path):
+    ex = Exclusion(tmp_path, sniff_binary=False)
+    for rel in ("src/license.py", "src/notice.go", "src/testing.py", "src/contest.py", "src/docs.py"):
+        assert ex.check(rel, False)[0] == INCLUIR, rel
 
 
 def test_binario_por_contenido(tmp_path):

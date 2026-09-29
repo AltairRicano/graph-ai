@@ -27,7 +27,7 @@ from grafo_ia.reconciliation import reconcile, summary
 
 EXCLUDE_HEADER = (
     "# Exclusiones propias del proyecto, una por línea. Se suman a las de por defecto.\n"
-    "# Nombre suelto = en cualquier nivel (admite comodines); con '/' = desde la raíz ('/docs' = solo la de la raíz).\n"
+    "# Nombre suelto = en cualquier nivel (admite comodines); con '/' = desde la raíz ('/generado' = solo la de la raíz).\n"
     "# Se editan a mano o con `graph ignore`.\n"
 )
 PREVIEW_LIMIT = 40

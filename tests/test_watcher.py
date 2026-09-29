@@ -32,17 +32,17 @@ def test_crear_y_borrar(initialized):
 
 def test_mover_archivo_y_carpeta(initialized):
     root = initialized
-    write_twin(root, "README.md.md", "[[src/main.go.md|main]] [[src/features/login.go.md|login]]\n")
+    write_twin(root, "Makefile.md", "[[src/main.go.md|main]] [[src/features/login.go.md|login]]\n")
     proc = WatchProcessor(root)
-    proc.process([ev(root, "modified", ".graph/README.md.md")])
+    proc.process([ev(root, "modified", ".graph/Makefile.md")])
     (root / "src/main.go").rename(root / "src/app.go")
     proc.process([ev(root, "moved", "src/main.go", "src/app.go")])
-    assert "[[src/app.go.md|main]]" in read_twin(root, "README.md.md")
+    assert "[[src/app.go.md|main]]" in read_twin(root, "Makefile.md")
     (root / "src/features").rename(root / "src/mods")
     proc.process([ev(root, "moved", "src/features", "src/mods", is_dir=True)])
     g = load(root)
     assert "src/mods/login.go.md" in g.nodes and "src/mods/mods.md" in g.nodes
-    assert "[[src/mods/login.go.md|login]]" in read_twin(root, "README.md.md")
+    assert "[[src/mods/login.go.md|login]]" in read_twin(root, "Makefile.md")
     assert_sano(root)
 
 

@@ -62,7 +62,7 @@ def run(capsys):
 def project(tmp_path: Path) -> Path:
     """Proyecto falso: código, subcarpetas anidadas y una carpeta excluida."""
     root = tmp_path / "proyecto"
-    write(root, "README.md", "# Proyecto\n")
+    write(root, "Makefile", "# Proyecto\n")
     write(root, "src/main.go", "package main\n\nfunc main() {}\n")
     write(root, "src/features/login.go", "package features\n")
     write(root, "src/features/pagos/cobro.go", "package pagos\n")

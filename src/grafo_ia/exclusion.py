@@ -57,6 +57,18 @@ SENSITIVE_PATTERNS = [
 
 CRUFT_PATTERNS = [".DS_Store", "Thumbs.db", "desktop.ini", "*.swp", "*.swo", "*.tmp", "*~"]
 
+# no es código con lógica que documentar: un gemelo solo repetiría el archivo
+# (nombres comparados en minúsculas)
+DOC_EXTENSIONS = {".md", ".markdown", ".rst"}
+# sin `license.*`: dejaría fuera código como `license.py` (`.md` ya es documentación)
+LICENSE_PATTERNS = [f"{n}{s}" for n in ("license", "licence", "copying", "notice") for s in ("", ".txt", "-*")]
+TEST_FILE_PATTERNS = ["test_*.py", "*_test.py", "*_test.go", "*.test.*", "*.spec.*"]
+NON_CODE_DIRS = {
+    "docs": "documentación", "doc": "documentación",
+    "tests": "pruebas", "test": "pruebas", "__tests__": "pruebas",
+    "plantillas": "plantillas", "templates": "plantillas",
+}
+
 # carpetas operativas en la raíz del proyecto: nunca se espejan
 OPERATIONAL_ROOT_DIRS = {"agentes": "reportes de agentes (operativo, no producto)"}
 
@@ -158,6 +170,8 @@ class Exclusion:
             return EXCLUIR, "carpeta oculta"
         if name in DEPENDENCY_DIRS or name.endswith(".egg-info"):
             return EXCLUIR, "carpeta de dependencias/build"
+        if name.lower() in NON_CODE_DIRS:
+            return EXCLUIR, f"carpeta de {NON_CODE_DIRS[name.lower()]}"
         if rel in OPERATIONAL_ROOT_DIRS:
             return EXCLUIR, OPERATIONAL_ROOT_DIRS[rel]
         rule = self._user_rule(rel, name)
@@ -174,8 +188,16 @@ class Exclusion:
             return EXCLUIR, "cruft de sistema/editor"
         if name in GENERATED_FILES:
             return EXCLUIR, "archivo generado (lockfile)"
-        if os.path.splitext(name)[1].lower() in BINARY_EXTENSIONS:
+        ext = os.path.splitext(name)[1].lower()
+        if ext in BINARY_EXTENSIONS:
             return EXCLUIR, "binario por extensión"
+        if ext in DOC_EXTENSIONS:
+            return EXCLUIR, "documentación"
+        lower = name.lower()
+        if _matches_any(lower, LICENSE_PATTERNS):
+            return EXCLUIR, "licencia"
+        if _matches_any(lower, TEST_FILE_PATTERNS):
+            return EXCLUIR, "prueba"
         rule = self._user_rule(rel, name)
         if rule:
             return EXCLUIR, f".graph/exclude: {rule}"
