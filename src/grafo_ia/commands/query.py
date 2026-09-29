@@ -1,4 +1,4 @@
-"""Consultas de solo lectura: get, neighbors, subgraph, search, status.
+"""Consultas de solo lectura: get (con expansión por secciones), neighbors, subgraph, search, status.
 
 Comparten la carga del JSON (sin lock: la escritura es atómica) y la
 resolución de rutas/secciones.
@@ -12,7 +12,7 @@ from collections import deque
 from dataclasses import dataclass, field
 
 from grafo_ia import graph_io, parser, states
-from grafo_ia.commands._common import cwd_of, root_of
+from grafo_ia.commands._common import cwd_of, plural, root_of
 from grafo_ia.edges import Resolver, TwinCache, is_structural
 from grafo_ia.errors import GraphError
 from grafo_ia.graph_io import Graph
@@ -89,6 +89,57 @@ def _fmt_sections(secs) -> str:
 
 
 # ---- get ---------------------------------------------------------------------
+def _candidates(out: list[Neighbor], inc: list[Neighbor]):
+    """(nodo, sección o None, dirección, relaciones) de cada vecino, salientes primero."""
+    for nb in out:
+        named = sorted(s for s in nb.sections if s)
+        for s in (named if None not in nb.sections and named else [None]):
+            yield nb.node_id, s, "saliente", nb.relaciones
+    for nb in inc:
+        named = sorted(s for s in nb.sections if s)
+        for s in (named or [None]):
+            yield nb.node_id, s, "entrante", nb.relaciones
+
+
+def _span(doc: parser.Doc, section: str | None) -> tuple[int, int]:
+    return parser.section_range(doc, section) if section else (0, len(doc.lines))
+
+
+def expand(graph: Graph, cache: TwinCache, start: str, section: str | None, depth: int):
+    """Recorrido a lo ancho por secciones, hasta `depth` saltos.
+
+    Regla de bucle: un salto se corta (sin cortar las demás ramas) si aterriza
+    en una sección ya leída (o contenida en una ya leída) o si apunta al archivo
+    completo de un gemelo ya visitado. Ir y volver entre dos archivos por
+    secciones distintas sí se sigue. -> ([(nodo, sección, dirección, relaciones,
+    salto, texto)], saltos omitidos)
+    """
+    visited: dict[str, list[tuple[int, int]]] = {start: [_span(cache.doc(start), section)]}
+    queue = deque([(start, section, 0)])
+    shown, omitted = [], 0
+    while queue:
+        node, sec, dist = queue.popleft()
+        if dist >= depth:
+            continue
+        out, inc = neighbors_of(graph, cache, node, sec)
+        for nid, s, direction, rels in _candidates(out, inc):
+            doc = cache.doc(nid)
+            if doc is None:
+                continue
+            try:
+                lo, hi = _span(doc, s)
+            except GraphError:
+                continue
+            seen = visited.get(nid)
+            if seen is not None and (s is None or any(a <= lo and hi <= b for a, b in seen)):
+                omitted += 1
+                continue
+            visited.setdefault(nid, []).append((lo, hi))
+            shown.append((nid, s, direction, rels, dist + 1, "".join(doc.lines[lo:hi])))
+            queue.append((nid, s, dist + 1))
+    return shown, omitted
+
+
 def run_get(args) -> int:
     root, graph, t = _load_target(args)
     cache = TwinCache(root)
@@ -98,45 +149,32 @@ def run_get(args) -> int:
     content = parser.section_text(doc, t.section) if t.section else doc.text
     print(f"==> {t.node_id}{'#' + t.section if t.section else ''} <==")
     print(content.rstrip("\n"))
-    if args.expand:
-        out, inc = neighbors_of(graph, cache, t.node_id, t.section)
-        for nb in out:
-            ndoc = cache.doc(nb.node_id)
-            if ndoc is None:
-                continue
-            secs = [s for s in nb.sections if s] if None not in nb.sections else []
-            if secs:
-                for s in sorted(secs):
-                    try:
-                        body = parser.section_text(ndoc, s)
-                    except GraphError:
-                        continue
-                    print(f"\n==> {nb.node_id}#{s} (saliente: {', '.join(nb.relaciones)}) <==")
-                    print(body.rstrip("\n"))
-            else:
-                print(f"\n==> {nb.node_id} (saliente: {', '.join(nb.relaciones)}) <==")
-                print(ndoc.text.rstrip("\n"))
-        for nb in inc:
-            sdoc = cache.doc(nb.node_id)
-            if sdoc is None:
-                continue
-            secs = sorted(s for s in nb.sections if s)
-            if not secs:
-                print(f"\n==> {nb.node_id} (entrante: {', '.join(nb.relaciones)}) <==")
-                print(sdoc.text.rstrip("\n"))
-            for s in secs:
-                try:
-                    body = parser.section_text(sdoc, s)
-                except GraphError:
-                    continue
-                print(f"\n==> {nb.node_id}#{s} (entrante: {', '.join(nb.relaciones)}) <==")
-                print(body.rstrip("\n"))
+    depth = args.depth if args.depth is not None else (1 if args.expand else 0)
+    if depth < 0:
+        raise GraphError("--depth no puede ser negativo")
+    if depth == 0:
+        return 0
+    shown, omitted = expand(graph, cache, t.node_id, t.section, depth)
+    for nid, s, direction, rels, dist, body in shown:
+        hop = f", salto {dist}" if depth > 1 else ""
+        print(f"\n==> {nid}{'#' + s if s else ''} ({direction}: {', '.join(rels)}{hop}) <==")
+        print(body.rstrip("\n"))
+    if omitted:
+        print(f"\n-- {plural(omitted, 'salto omitido', 'saltos omitidos')}: ya leídos en este recorrido")
     return 0
 
 
 # ---- neighbors ---------------------------------------------------------------
+def _reject_folder(graph: Graph, t, command: str) -> None:
+    if graph.tipo(t.node_id) == "indice":
+        shown = t.rel or "."
+        raise GraphError(f"{shown}: este elemento es una carpeta; `{command}` no aplica a carpetas. "
+                         f"Usa `graph get {shown}` para ver lo que contiene")
+
+
 def run_neighbors(args) -> int:
     root, graph, t = _load_target(args)
+    _reject_folder(graph, t, "neighbors")
     cache = TwinCache(root)
     out, inc = neighbors_of(graph, cache, t.node_id, t.section)
     if not args.incoming:
@@ -173,6 +211,7 @@ def subgraph(graph: Graph, start: str, depth: int, direction: str = "both") -> d
 
 def run_subgraph(args) -> int:
     root, graph, t = _load_target(args, allow_section=False)
+    _reject_folder(graph, t, "subgraph")
     if args.depth < 0:
         raise GraphError("--depth no puede ser negativo")
     seen = subgraph(graph, t.node_id, args.depth, args.direction)
@@ -277,7 +316,8 @@ def run_status(args) -> int:
 def register(sub) -> None:
     p = sub.add_parser("get", help="contenido de un gemelo o una sección")
     p.add_argument("ruta", metavar="ruta[#sección]")
-    p.add_argument("--expand", action="store_true", help="incluye inline el contenido de los vecinos")
+    p.add_argument("--expand", action="store_true", help="incluye inline el contenido de los vecinos (un salto)")
+    p.add_argument("--depth", type=int, metavar="N", help="expande hasta N saltos por secciones, sin repetir lo ya leído (implica --expand)")
     p.set_defaults(func=run_get)
 
     p = sub.add_parser("neighbors", help="nodos conectados (entrantes y salientes)")

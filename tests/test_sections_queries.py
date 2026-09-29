@@ -183,6 +183,40 @@ def test_subgraph_profundidad_y_ciclos(linked, run):
     assert {n["id"] for n in data["nodes"]} >= {"README.md.md", "src/main.go.md", "src/features/pagos/cobro.go.md"}
 
 
+def test_get_depth_ida_y_vuelta_por_secciones_distintas(initialized, run):
+    root = initialized
+    write_twin(root, "src/main.go.md", "## uno\nver [[src/features/login.go.md#dos|dos]]\n\n## cuatro\nvuelve a [[src/features/login.go.md#dos|dos]]\n")
+    write_twin(root, "src/features/login.go.md", "## dos\nsigue en [[src/main.go.md#cuatro|cuatro]]\n\n## tres\nnada\n")
+    for rel in ("src/main.go", "src/features/login.go"):
+        assert run(root, "update", rel)[0] == 0
+    code, out = run(root, "get", "src/main.go#uno", "--depth", "5")
+    assert code == 0, out
+    assert "==> src/features/login.go.md#dos (saliente: conoce, salto 1) <==" in out
+    assert "==> src/main.go.md#cuatro (saliente: conoce, salto 2) <==" in out  # vuelve, pero a otra sección
+    assert out.count("==> src/features/login.go.md#dos") == 1  # la sección ya leída corta esa rama
+    assert "saltos omitidos" in out
+    # con un salto es lo mismo que --expand
+    assert run(root, "get", "src/main.go#uno", "--depth", "1")[1] == run(root, "get", "src/main.go#uno", "--expand")[1]
+
+
+def test_get_depth_corta_archivo_completo_ya_visitado(initialized, run):
+    root = initialized
+    write_twin(root, "src/main.go.md", "## uno\nver [[src/features/login.go.md|login]]\n")
+    write_twin(root, "src/features/login.go.md", "## dos\nvuelve a [[src/main.go.md|main]]\n")
+    for rel in ("src/main.go", "src/features/login.go"):
+        assert run(root, "update", rel)[0] == 0
+    code, out = run(root, "get", "src/main.go", "--depth", "4")
+    assert code == 0, out
+    assert out.count("==> src/main.go.md") == 1 and out.count("==> src/features/login.go.md") == 1
+
+
+def test_neighbors_y_subgraph_rechazan_carpetas(linked, run):
+    for cmd in ("neighbors", "subgraph"):
+        code, out = run(linked, cmd, "src/features")
+        assert code == 2 and "este elemento es una carpeta" in out and "graph get src/features" in out
+    assert run(linked, "get", "src/features")[0] == 0
+
+
 def test_search(linked, run):
     out = run(linked, "search", "ayuda")[1]
     assert "src/main.go.md:" in out and "[#helper]" in out
