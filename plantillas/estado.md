@@ -11,7 +11,9 @@ Léela al actualizar el estado del proyecto (al cerrar una sesión o una fase).
 - El porqué de lo hecho vive en [[Estado_Proyecto/Decisiones.md|Decisiones]]; el horizonte a futuro,
   en [[Estado_Proyecto/Plan.md|Plan]]. Enlaza en vez de repetir.
 - "En curso" solo menciona tecnologías que estén en [[Estado_Proyecto/Tecnologias.md|Tecnologías]].
-- Al terminar: `graph update Estado_Proyecto/Estado.md`.
+- Se escribe con `graph multiedit` (`=== Estado_Proyecto/Estado.md#Sección ===` reemplaza una sección;
+  sin `#Sección` agrega al final), que confirma él mismo. Solo si lo editas a mano:
+  `graph update Estado_Proyecto/Estado.md`.
 
 ## Formato
 

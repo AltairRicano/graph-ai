@@ -5,9 +5,13 @@ sin ensuciar el código con comentarios extensos. Inspirado en el grafo de Obsid
 
 - Cada archivo tiene un gemelo `.md` en `.graph/` y cada carpeta un índice.
 - Los `[[enlaces]]` entre gemelos forman un grafo dirigido en `.graph/index.json` (formato node-link de networkx).
-- La sincronía se detecta por hash del contenido (no por fecha), con cuatro estados: ok, desactualizado, faltante y huérfano.
+- La sincronía se detecta por hash del contenido (no por fecha), con cinco estados: ok, desactualizado, faltante,
+  trivial y huérfano.
+- `graph multiedit` escribe el cuerpo de muchos gemelos en una sola llamada a partir de un lote de texto plano,
+  pone las fechas y confirma la sincronía de cada uno.
+- Los archivos triviales (estilos, configuración) siguen en el grafo pero no piden contenido: `.graph/trivial`.
 - `.graph` es un repo git anidado sin remoto, alineado con el repo de código mediante hooks.
-- `graph update` guarda una instantánea del código confirmado: `graph diff` muestra qué cambió desde
+- Al confirmar un gemelo se guarda una instantánea del código: `graph diff` muestra qué cambió desde
   entonces y qué funciones tocó, y en Python y Go se avisa cuando las secciones del gemelo ya no cuadran
   con las funciones del código.
 
@@ -57,12 +61,50 @@ cd mi-proyecto
 graph init            # vista previa de exclusiones y confirmación
 graph status
 graph get src/main.go --expand
-# ... escribir el gemelo .graph/src/main.go.md ...
-graph update src/main.go
+graph multiedit <<'LOTE'          # escribe varios gemelos y los confirma
+=== src/main.go ===
+Punto de entrada del servicio.
+=== src/pagos/cobro.go#calcular_total ===
+**Qué hace:** ... **Por qué existe:** ...
+LOTE
 # ... más tarde, tras cambiar el código ...
 graph incomplete                  # desactualizados primero, luego faltantes
-graph diff src/main.go --symbols  # qué funciones cambiaron desde el último update
+graph diff src/main.go --symbols  # qué funciones cambiaron desde la última confirmación
+graph update src/a.go src/b.go    # confirmar gemelos editados a mano
 graph ignore '*.csv'              # sacar del grafo lo que no aporta contexto
+graph trivial '*.sql'             # dejarlo en el grafo, pero sin pedirle contenido
+```
+
+### Lotes de `graph multiedit`
+
+Cada entrada empieza con una línea separadora y sigue con el contenido tal cual, sin escapar nada.
+Las rutas van desde la raíz del proyecto.
+
+| Separador | Efecto |
+| :--- | :--- |
+| `=== ruta ===` | Agrega al final del cuerpo (en un gemelo vacío, lo escribe completo). |
+| `=== ruta [override] ===` | Reemplaza el cuerpo completo. |
+| `=== ruta#sección ===` | Reemplaza esa sección; en un gemelo de código la crea bajo `## Funciones` si no existe. |
+| `=== ruta#sección [append] ===` | Agrega al final de esa sección. |
+
+El frontmatter y las líneas `**Elaboración:** | **Actualización:**` los mantiene el comando. El lote se valida
+entero antes de escribir (un error no deja nada a medias), agrega al grafo los archivos nuevos que mencione y
+al final reporta enlaces rotos, funciones sin sección y gemelos más largos que su código. Agregar a un gemelo
+desactualizado se rechaza: hay que reescribir la sección que cambió o usar `[override]`. Con `-f lote.txt` lee
+el lote de un archivo y lo borra al aplicarlo (`--keep` lo conserva).
+
+### Cierre de turno en Claude Code
+
+`graph hook claude-stop` es un hook `Stop`: si el código con cambios sin commitear tiene gemelos faltantes o
+desactualizados, bloquea el cierre del turno una vez y le dice al agente cuáles son. Es opcional y se declara
+en `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "Stop": [{ "hooks": [{ "type": "command", "command": "graph hook claude-stop" }] }]
+  }
+}
 ```
 
 ## Estructura del repositorio
@@ -75,7 +117,7 @@ graph-ai/
 ├── scripts/             instalador multiplataforma (install.py)
 ├── src/grafo_ia/        paquete Python del CLI: parser, grafo, exclusiones, estados,
 │   │                    instantáneas y cruce de funciones con secciones
-│   ├── commands/        un módulo por subcomando (init, update, diff, ignore, ...)
+│   ├── commands/        un módulo por subcomando (init, multiedit, update, diff, ignore, ...)
 │   └── templates/       cáscaras de Estado_Proyecto que crea `graph init`
 ├── tests/               pruebas con pytest
 ├── graph, graph.cmd     lanzadores del repo (POSIX y Windows)

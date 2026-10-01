@@ -15,7 +15,7 @@ import sys
 import time
 from collections import Counter
 
-from grafo_ia import graph_io, settings
+from grafo_ia import graph_io, settings, trivial
 from grafo_ia.commands import hooks
 from grafo_ia.commands._common import cwd_of, plural
 from grafo_ia.commands.populate import populate
@@ -49,6 +49,10 @@ def ensure_graph_dir(root, name: str | None) -> tuple[str, str]:
     ex = gdir / EXCLUDE_FILE
     if not ex.exists():
         ex.write_text(initial_exclude_text(), encoding="utf-8")
+        # solo junto con un `exclude` nuevo: un grafo que ya existía no gana triviales sin pedirlo
+        tr = gdir / trivial.TRIVIAL_FILE
+        if not tr.exists():
+            tr.write_text(trivial.initial_text(), encoding="utf-8")
     nombre = settings.get_value(root, "nombre")
     if name:
         nombre = name

@@ -9,8 +9,6 @@ Cada heading es un título descriptivo en snake_case. Cada decisión declara las
 
 ```markdown
 ## uso_de_hash_en_lugar_de_mtime
-**Elaboración:** AAAA-MM-DD | **Actualización:** AAAA-MM-DD
-
 **Carpetas que afecta:** [[src/sync/sync.md|sync]]
 
 Descripción tan extensa como haga falta.

@@ -10,7 +10,9 @@ Léela al agregar, avanzar o cerrar trabajo planeado.
   crear* y `graph incomplete` lo lista hasta que el archivo exista.
 - Al completar un bloque, **se corta entero** y se pega al final bajo `## Completado`, con
   `**Sección de origen:**` y `**Cerrado:** AAAA-MM-DD`. Así un `tail` muestra el cierre más reciente.
-- Al terminar: `graph update Estado_Proyecto/Plan.md`.
+- Se escribe con `graph multiedit` (`=== Estado_Proyecto/Plan.md#Sección ===` reemplaza una sección;
+  sin `#Sección` agrega al final), que confirma él mismo. Solo si lo editas a mano:
+  `graph update Estado_Proyecto/Plan.md`.
 
 ## Formato
 

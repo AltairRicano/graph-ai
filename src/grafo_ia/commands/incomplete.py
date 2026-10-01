@@ -4,8 +4,9 @@ Listas en orden de prioridad: primero los desactualizados (el gemelo existe
 pero ya miente sobre el código), luego los faltantes (vacíos), luego
 pendientes por crear y huérfanos (más funciones sin sección o secciones sin
 función, enlaces ambiguos y sin texto a
-mostrar, como aviso). No depende del Watcher. Siempre sale con 0: informa,
-no bloquea.
+mostrar, y gemelos que pesan más que su código, como aviso). Los triviales
+(`.graph/trivial`) con gemelo vacío no se listan: no piden contenido.
+No depende del Watcher. Siempre sale con 0: informa, no bloquea.
 """
 
 from __future__ import annotations
@@ -32,6 +33,9 @@ def print_report(rep: states.Report) -> None:
         print_list("enlaces ambiguos", (f"{p.source}:{p.line} {p.link} ({p.reason})" for p in rep.ambiguos))
     if rep.sin_alias:
         print_list("enlaces sin texto a mostrar", (f"{p.source}:{p.line} {p.link}" for p in rep.sin_alias))
+    if rep.extensos:
+        print_list("gemelos más largos que su código (toca consolidar)",
+                   (f"{rel}: {twin} caracteres de gemelo, {code} de código" for rel, twin, code in rep.extensos))
 
 
 def run(args) -> int:

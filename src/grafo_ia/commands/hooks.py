@@ -4,10 +4,16 @@
 principal. Los hooks del repo principal son shims de shell que llaman a
 `graph hook <nombre>`; si ya había un hook, se encadena (corre primero).
 Todos avisan y ninguno bloquea, salvo `pre-commit` en modo estricto.
+
+Aparte de git, `graph hook claude-stop` es un hook `Stop` para Claude Code:
+no deja terminar el turno si el código tocado y sin commitear tiene gemelos
+faltantes o desactualizados. No lo instala nadie: se declara a mano en el
+`settings.json` del agente.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import shutil
@@ -16,7 +22,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from grafo_ia import graph_io, settings, states
+from grafo_ia import graph_io, settings, states, trivial
 from grafo_ia.commands._common import cwd_of
 from grafo_ia.edges import TwinCache
 from grafo_ia.errors import GraphError, NoGraphError
@@ -28,6 +34,9 @@ HOOKS = ("pre-commit", "post-commit", "post-checkout", "post-merge", "post-rewri
 MARKER = "# grafo_ia: hook instalado por `graph init`"
 CHAINED_SUFFIX = ".pre-grafo"
 TRAILER = "Code-commit"
+CLAUDE_STOP = "claude-stop"
+EXIT_CLAUDE_BLOCK = 2  # en un hook de Claude Code, 2 bloquea y le pasa stderr al agente
+STOP_LISTED = 20
 NESTED_GITIGNORE = "index.lock\nwatcher.pid\nwatcher.log\nindex.json.*.tmp\nindex.json.corrupt-*\n*.mv-*\n.grafo-*.tmp\n"
 
 
@@ -238,13 +247,16 @@ def pre_commit(root: Path, argv: list[str]) -> int:
         r = subprocess.run(["git", "show", f":{top_path[rel]}"], cwd=str(top), capture_output=True)
         return hash_bytes(r.stdout) if r.returncode == 0 else None
 
+    trivial_rules = trivial.load_rules(root)
     grave: list[str] = []
     for rel, _ in staged:
         node = graph.nodes.get(code_id(rel))
         if node is None:
+            if trivial.is_trivial(trivial_rules, rel):
+                continue
             grave.append(f"faltante: {rel} (ni siquiera está en el grafo; corre `graph add`)")
             continue
-        state = states.code_state(root, node, cache, staged_hash)
+        state = states.code_state(root, node, cache, staged_hash, trivial_rules)
         if state in (states.FALTANTE, states.DESACTUALIZADO):
             grave.append(f"{state}: {rel}")
     # prioridad: desactualizados (el gemelo miente) antes que faltantes (vacíos)
@@ -352,6 +364,75 @@ def post_rewrite(root: Path, argv: list[str], stdin: str | None = None) -> int:
     return 0
 
 
+def uncommitted(root: Path) -> list[str]:
+    """Rutas de proyecto con cambios sin commitear (modificadas, nuevas o sin trackear)."""
+    top = main_toplevel(root)
+    if top is None:
+        return []
+    out = git(top, "status", "--porcelain", "-z", "--untracked-files=all", check=False).stdout
+    rels = []
+    parts = out.split("\0")
+    i = 0
+    while i < len(parts):
+        entry = parts[i]
+        i += 1
+        if len(entry) < 4:
+            continue
+        status, path = entry[:2], entry[3:]
+        if status[0] in "RC":
+            i += 1  # el origen del renombre viene en el siguiente campo
+        if "D" in status:
+            continue
+        try:
+            rel = to_rel(root, top / path)
+        except GraphError:
+            continue
+        if rel and rel != GRAPH_DIR and not rel.startswith(GRAPH_DIR + "/"):
+            rels.append(rel)
+    return rels
+
+
+def claude_stop(root: Path, payload: dict) -> int:
+    """Hook `Stop` de Claude Code: bloquea el cierre del turno si lo tocado no tiene gemelo al día.
+
+    Solo mira el código con cambios sin commitear, así un repo con cientos de
+    faltantes viejos no impide terminar. Si el agente ya viene de un bloqueo
+    (`stop_hook_active`) deja pasar: avisar una vez, no encerrarlo en un bucle.
+    """
+    if payload.get("stop_hook_active") or not git_available():
+        return 0
+    excl = Exclusion(root)
+    rels = [r for r in uncommitted(root) if excl.is_included(r, False)]
+    if not rels:
+        return 0
+    graph = graph_io.load(root)
+    rep = states.report(root, graph, rels, links=False)
+    trivial_rules = trivial.load_rules(root)
+    sin_nodo = [r for r in rels if code_id(r) not in graph.nodes and (root / r).is_file()
+                and not trivial.is_trivial(trivial_rules, r)]
+    pend = ([f"desactualizado: {r}" for r in rep.desactualizados] + [f"faltante: {r}" for r in rep.faltantes]
+            + [f"faltante: {r} (aún no está en el grafo)" for r in sin_nodo])
+    if not pend:
+        return 0
+    print("grafo: el código que tocaste tiene gemelos que no están al día:", file=sys.stderr)
+    for line in pend[:STOP_LISTED]:
+        print(f"  - {line}", file=sys.stderr)
+    if len(pend) > STOP_LISTED:
+        print(f"  ... y {len(pend) - STOP_LISTED} más (`graph incomplete`)", file=sys.stderr)
+    print("Escríbelos con `graph multiedit` (confirma la sincronía él mismo) antes de terminar.", file=sys.stderr)
+    return EXIT_CLAUDE_BLOCK
+
+
+def _stop_payload() -> dict:
+    if sys.stdin.isatty():
+        return {}
+    try:
+        data = json.loads(sys.stdin.read() or "{}")
+    except (ValueError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 HANDLERS = {
     "pre-commit": pre_commit,
     "post-commit": post_commit,
@@ -363,14 +444,15 @@ HANDLERS = {
 
 def register(sub) -> None:
     p = sub.add_parser("hook", help="uso interno de los hooks de git; `graph hook install` los reinstala")
-    p.add_argument("nombre", choices=["install", *HOOKS])
+    p.add_argument("nombre", choices=["install", CLAUDE_STOP, *HOOKS])
     p.add_argument("args", nargs="*")
     p.set_defaults(func=run)
 
 
 def run(args) -> int:
+    payload = _stop_payload() if args.nombre == CLAUDE_STOP else {}
     try:
-        root = find_root(cwd_of(args))
+        root = find_root(payload.get("cwd") or cwd_of(args))
     except NoGraphError:
         if args.nombre == "install":
             raise
@@ -382,6 +464,12 @@ def run(args) -> int:
         return 0
     if not graph_io.index_path(root).exists():
         return 0
+    if args.nombre == CLAUDE_STOP:
+        try:
+            return claude_stop(root, payload)
+        except GraphError as e:
+            print(f"[AVISO] grafo ({args.nombre}): {e}")
+            return 0
     try:
         return HANDLERS[args.nombre](root, list(args.args))
     except GraphError as e:

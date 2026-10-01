@@ -89,9 +89,9 @@ def norm_rule(rule: str) -> str:
     return "" if rule.strip("/") == "" else rule
 
 
-def load_user_rules(root: Path) -> list[str]:
-    """Reglas de `.graph/exclude`: se releen en cada corrida."""
-    p = graph_dir(root) / EXCLUDE_FILE
+def load_user_rules(root: Path, filename: str = EXCLUDE_FILE) -> list[str]:
+    """Reglas de `.graph/exclude` (o de otro archivo de patrones): se releen en cada corrida."""
+    p = graph_dir(root) / filename
     if not p.exists():
         return []
     rules = []
@@ -110,6 +110,21 @@ LINK_BREAKING_REASON = "el nombre tiene # | [ o ], que rompen la sintaxis de enl
 
 def _breaks_link(name: str) -> bool:
     return any(c in LINK_BREAKING_CHARS for c in name)
+
+
+def match_rule(rules: list[str], rel: str, name: str) -> str | None:
+    """Primera regla propia que cubre `rel`: nombre suelto en cualquier nivel, con `/` desde la raíz."""
+    for rule in rules:
+        if rule.startswith("/"):
+            rule_rel = rule.lstrip("/")
+            if rel == rule_rel or rel.startswith(rule_rel + "/") or fnmatch.fnmatchcase(rel, rule_rel):
+                return rule
+        elif "/" in rule:
+            if rel == rule or rel.startswith(rule + "/") or fnmatch.fnmatchcase(rel, rule):
+                return rule
+        elif fnmatch.fnmatchcase(name, rule):
+            return rule
+    return None
 
 
 def _matches_any(name: str, patterns) -> bool:
@@ -150,17 +165,7 @@ class Exclusion:
         return self._check_file(rel, name)
 
     def _user_rule(self, rel: str, name: str) -> str | None:
-        for rule in self.user_rules:
-            if rule.startswith("/"):
-                rule_rel = rule.lstrip("/")
-                if rel == rule_rel or rel.startswith(rule_rel + "/") or fnmatch.fnmatchcase(rel, rule_rel):
-                    return rule
-            elif "/" in rule:
-                if rel == rule or rel.startswith(rule + "/") or fnmatch.fnmatchcase(rel, rule):
-                    return rule
-            elif fnmatch.fnmatchcase(name, rule):
-                return rule
-        return None
+        return match_rule(self.user_rules, rel, name)
 
     def _check_dir(self, rel: str, name: str) -> tuple[str, str]:
         if _breaks_link(name):

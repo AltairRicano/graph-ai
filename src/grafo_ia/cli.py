@@ -19,6 +19,7 @@ from grafo_ia.commands import (
     ignore,
     incomplete,
     init,
+    multiedit,
     mv,
     populate,
     prune,
@@ -26,12 +27,13 @@ from grafo_ia.commands import (
     relate,
     remove,
     rename,
+    trivial,
     update,
     watcher,
 )
 from grafo_ia.errors import EXIT_USAGE, GraphError
 
-MODULES = (init, add, populate, ignore, remove, update, mv, prune, relate, rename, config, query, diff, incomplete, doctor, watcher, hooks)
+MODULES = (init, add, populate, ignore, trivial, remove, update, multiedit, mv, prune, relate, rename, config, query, diff, incomplete, doctor, watcher, hooks)
 
 
 def build_parser() -> argparse.ArgumentParser:

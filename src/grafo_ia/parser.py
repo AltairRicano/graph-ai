@@ -134,9 +134,10 @@ def _unquote(value: str) -> str:
     return value
 
 
-def parse(text: str) -> Doc:
+def parse(text: str, frontmatter: bool = True) -> Doc:
+    """`frontmatter=False` para un fragmento de cuerpo: un `---` inicial es un separador, no un header."""
     lines = text.splitlines(keepends=True)
-    meta, body_start = _parse_frontmatter(lines)
+    meta, body_start = _parse_frontmatter(lines) if frontmatter else ({}, 0)
     code = [False] * len(lines)
     headings: list[Heading] = []
     fence: str | None = None

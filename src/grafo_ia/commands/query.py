@@ -304,6 +304,7 @@ def run_status(args) -> int:
     print(f"ok: {len(rep.ok)}")
     print(f"desactualizado: {len(rep.desactualizados)}")
     print(f"faltante: {len(rep.faltantes)}")
+    print(f"trivial: {len(rep.triviales)}")
     print(f"desalineado: {len(rep.desalineados)}")
     print(f"pendiente por crear: {len(rep.pendientes)}")
     print(f"huérfano: {len(rep.huerfanos)}")
