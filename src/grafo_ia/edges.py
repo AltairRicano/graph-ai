@@ -7,11 +7,17 @@ Reglas (Schema, "Aristas" y "Regeneración de aristas"):
 - Enlaces estructurales (listas de un índice) y enlaces a sí mismo no son aristas.
 - Un enlace que no resuelve no es arista: es "pendiente por crear".
 - Nunca se toca `last_synced_hash` aquí.
+
+Los documentos (índices y Estado_Proyecto) son el origen de toda arista; un
+archivo de código solo es destino. Las líneas `[[origen]] → [[destino]]: por qué`
+de un índice se leen aparte con `relations()`: son lo que `graph neighbors`
+muestra de un archivo, y no cambian el JSON.
 """
 
 from __future__ import annotations
 
 import posixpath
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -19,6 +25,8 @@ from grafo_ia import parser
 from grafo_ia.graph_io import Graph
 from grafo_ia.paths import twin_path
 from grafo_ia.templates import STRUCTURAL_SECTIONS
+
+_ARROW = re.compile(r"\s*(?:→|->|=>)\s*")
 
 
 class TwinCache:
@@ -125,7 +133,21 @@ def is_structural(graph: Graph, source_id: str, doc: parser.Doc, link: parser.Li
     return top is not None and top.level == 2 and top.text in STRUCTURAL_SECTIONS
 
 
-def scan_links(graph: Graph, resolver: Resolver, cache: TwinCache, source_id: str, check_sections: bool = True) -> LinkScan:
+def code_has_name(root: Path, rel: str, name: str) -> bool:
+    """¿El nombre de un enlace `archivo#función` sigue apareciendo en el archivo? Vale para cualquier lenguaje."""
+    last = name.replace("`", "").strip().split("(")[0].split(".")[-1].strip()
+    if not last:
+        return True
+    try:
+        text = (root / rel).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return re.search(rf"(?<!\w){re.escape(last)}(?!\w)", text) is not None
+
+
+def scan_links(graph: Graph, resolver: Resolver, cache: TwinCache, source_id: str, check_sections: bool = True,
+               root: Path | None = None) -> LinkScan:
+    """`root` hace falta para comprobar las secciones de enlaces a código (`archivo#función`)."""
     out = LinkScan()
     doc = cache.doc(source_id)
     if doc is None:
@@ -144,10 +166,53 @@ def scan_links(graph: Graph, resolver: Resolver, cache: TwinCache, source_id: st
                 out.pending.append((link, "no existe el destino"))
             continue
         if check_sections and link.section:
-            tdoc = cache.doc(target_id)
-            if tdoc is None or not parser.has_section(tdoc, link.section):
-                out.pending.append((link, f"no existe la sección '{link.section}'"))
+            if graph.tipo(target_id) == "codigo":
+                if root is not None and not code_has_name(root, target_id, link.section):
+                    out.pending.append((link, f"'{link.section}' ya no aparece en {target_id}"))
+            else:
+                tdoc = cache.doc(target_id)
+                if tdoc is None or not parser.has_section(tdoc, link.section):
+                    out.pending.append((link, f"no existe la sección '{link.section}'"))
         out.resolved.append((link, target_id))
+    return out
+
+
+@dataclass
+class Relation:
+    """Una línea `[[origen]] → [[destino]]: por qué` de un índice."""
+
+    source: str  # id del nodo origen
+    target: str
+    why: str
+    declared_in: str  # id del índice
+    heading: str | None
+    line: int  # 0-based
+
+
+def relations(graph: Graph, resolver: Resolver, cache: TwinCache, index_id: str) -> list[Relation]:
+    """Relaciones declaradas en un documento: líneas con dos enlaces unidos por una flecha."""
+    doc = cache.doc(index_id)
+    if doc is None:
+        return []
+    by_line: dict[int, list[parser.Link]] = {}
+    for link in parser.links(doc):
+        if not is_structural(graph, index_id, doc, link):
+            by_line.setdefault(link.line, []).append(link)
+    out = []
+    for line, found in sorted(by_line.items()):
+        if len(found) < 2:
+            continue
+        a, b = found[0], found[1]
+        text = doc.lines[line]
+        if not _ARROW.fullmatch(text[a.end:b.start]):
+            continue
+        src, _ = resolver.resolve(a.target, index_id)
+        dst, _ = resolver.resolve(b.target, index_id)
+        if src is None or dst is None:
+            continue
+        why = text[b.end:].strip().lstrip(":").strip()
+        heading = doc.headings[a.heading].text if a.heading is not None else None
+        out.append(Relation(src, dst, why, index_id, heading, line))
     return out
 
 

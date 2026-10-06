@@ -55,7 +55,7 @@ def retarget(old_text: str, old_id: str, new_id: str, new_ids: set[str], tipo: s
         return new_id
     if t == old_id:
         return new_id
-    if t == old_id[:-3]:
+    if old_id.endswith(".md") and new_id.endswith(".md") and t == old_id[:-3]:
         return new_id[:-3]
     if tipo == "indice" and t == folder_rel_of_index(old_id):
         return folder_rel_of_index(new_id)
@@ -65,7 +65,7 @@ def retarget(old_text: str, old_id: str, new_id: str, new_ids: set[str], tipo: s
     cand = "/".join(new_id.split("/")[-k:])
     matches = [i for i in new_ids if i == cand or i.endswith("/" + cand)]
     if len(matches) == 1:
-        return cand if had_md else cand[:-3]
+        return cand[:-3] if cand.endswith(".md") and not had_md else cand
     return new_id
 
 

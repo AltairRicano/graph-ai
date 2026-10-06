@@ -11,7 +11,7 @@ No tienen gemelo markdown: qué hace cada función y por qué lo dice el propio 
 Lo que el código no puede decir vive en `.graph/`:
 
 - Un **índice** por carpeta, con su mismo nombre (`src/pagos` → `.graph/src/pagos/pagos.md`): un solo
-  documento por carpeta, tenga 3 archivos o 30. El maestro es `.graph/Index.md`.
+  documento por carpeta, tenga 3 archivos o 30. El de la raíz del proyecto (`.`) es `.graph/Index.md`.
 - `.graph/Estado_Proyecto/`: `Estado.md`, `Plan.md`, `Decisiones.md`, `Tecnologias.md` y `Arquitectura.md`.
 
 Los `[[enlaces]]` de índices y documentos forman un grafo dirigido (`.graph/index.json`) que se consulta
@@ -66,14 +66,15 @@ desde ahí (`graph.cmd install` en Windows). Detalles en el README.
 ### 3. Al cerrar una iteración: escribir (antes de responder y antes de cada commit)
 
 1. `graph incomplete <rutas tocadas>`: lista los índices por escribir, cada uno con su motivo
-   (sin `## Propósito`; archivos que entraron, salieron o se renombraron; enlaces que ya no resuelven).
-   Con eso basta para saber qué cambió: no hace falta otro comando.
+   (sin `## Propósito`; archivos que entraron o salieron; enlaces que ya no resuelven). Un archivo como
+   ruta pide la carpeta que lo contiene. Con eso basta para saber qué cambió: no hace falta otro comando.
 2. Por cada carpeta que tocaste, decide si el cambio altera lo que su índice dice: el propósito, una
    relación o una regla. Si solo cambió el cuerpo de funciones, el índice no se toca.
 3. Escribe **todo en un solo `graph multiedit`** (ver abajo): las secciones de índice que cambian y los
    documentos de `Estado_Proyecto/` que correspondan (`Estado.md` siempre; `Plan.md` / `Decisiones.md`
    si aplica). Confirma la sincronía él mismo: no hace falta `graph update` después.
-4. Corrige en un segundo lote solo lo que `multiedit` avise (enlaces por corregir).
+4. Corrige en un segundo lote solo lo que `multiedit` avise (enlaces por corregir, índices que siguen
+   incompletos).
 
 **El índice que leíste antes de tocar el código es el mismo que editas al cerrar: no lo releas.** Si no
 lo habías leído, pídelo en la misma llamada que el paso 1 (`graph incomplete src/pagos; graph get src/pagos`).
@@ -108,7 +109,7 @@ LOTE
 | :--- | :--- |
 | `=== ruta#sección ===` | Reemplaza esa sección (el contenido va **sin** repetir el heading). En un índice, si no existe se crea como `##`. |
 | `=== ruta#sección [append] ===` | Agrega al final de esa sección. |
-| `=== ruta ===` | Agrega al final del cuerpo: en un índice, una sección nueva con su `## nombre`. |
+| `=== ruta ===` | Agrega al final de lo escrito: en un índice, una sección nueva con su `## nombre`, antes de las listas. |
 | `=== ruta [override] ===` | Reemplaza todo lo escrito. En un índice se conservan las listas de carpetas y archivos. |
 
 - **Un archivo de código no es un blanco**: se rechaza. Su porqué va en un comentario del propio archivo.
@@ -116,10 +117,12 @@ LOTE
   cabecera y pone las fechas de cada sección (mantiene la elaboración, mueve la actualización solo si el
   texto cambió).
 - Se valida todo antes de escribir: con un error no se aplica nada y dice qué entrada falló.
-- Las carpetas y archivos nuevos se agregan solos al grafo: no hace falta `graph add`.
+- Antes de leer el lote reconcilia el proyecto: las carpetas y archivos nuevos entran solos al grafo y
+  las listas quedan al día. No hace falta `graph add`.
 - El heredoc con comillas (`<<'LOTE'`) evita que el shell interprete `$`, comillas o backticks. Para un
   lote muy grande, escríbelo a un archivo y pásalo con `graph multiedit -f lote.txt` (lo borra al aplicarlo).
-- La salida es una línea de resumen más los avisos: enlaces por corregir e índices demasiado largos.
+- La salida es una línea de resumen más los avisos: enlaces por corregir, índices del lote que siguen
+  incompletos (con su motivo) e índices más largos que el código de su carpeta.
 
 ## Catálogo de comandos
 
@@ -129,8 +132,8 @@ LOTE
 | `graph add [ruta]` | Reconcilia una carpeta (por defecto, la actual): registra los archivos nuevos, crea los índices de las carpetas nuevas y pone al día las listas de los existentes. |
 | `graph multiedit [-f lote] [--keep]` | Escribe secciones de varios índices y documentos de un lote (stdin o archivo), pone las fechas y confirma cada uno. Ver [`graph multiedit`](#graph-multiedit). |
 | `graph populate [ruta]` | Materializa lo que dice el JSON (índices y sus listas). No sobreescribe contenido. |
-| `graph update <ruta>...` | Confirma índices y documentos editados a mano (`multiedit` ya lo hace): guarda qué archivos tiene la carpeta, regenera las aristas y mueve `fecha_actualizacion`. |
-| `graph diff [carpetas]` | Qué cambió en la carpeta desde la última confirmación de su índice: archivos nuevos, borrados, renombrados y modificados. Sin rutas: todas las desactualizadas. |
+| `graph update <ruta>...` | Confirma índices y documentos editados a mano (`multiedit` ya lo hace): guarda qué archivos tiene la carpeta, regenera las aristas y mueve `fecha_actualizacion`. No acepta archivos de código. |
+| `graph diff [carpetas]` | Qué cambió en la carpeta desde la última confirmación de su índice: archivos que entraron (`+`), salieron (`-`) y se modificaron (`~`). Sin rutas: todas las que tienen cambios. |
 | `graph ignore [patrón...] [--remove] [--force]` | Sin argumentos lista las exclusiones. Con patrones los agrega a `.graph/exclude` y saca del grafo lo excluido. `--remove` los quita y reconcilia. |
 | `graph trivial [patrón...] [--remove]` | Sin argumentos lista los patrones de `.graph/trivial`; con patrones los agrega o quita. |
 | `graph remove <ruta>` | Saca del grafo un archivo o carpeta; los enlaces que lo apuntaban se quedan como texto plano. |
@@ -139,7 +142,7 @@ LOTE
 | `graph rename <carpeta>#<sección> <nuevo> [--links-only]` | Renombra un heading y reescribe los enlaces que lo apuntan. `--links-only` si ya lo renombraste a mano. |
 | `graph relate <origen> <destino> [--add R] [--remove R]` | Muestra o edita el tipo de relación de una arista existente. |
 | `graph get <ruta>[#sección] [--expand] [--depth N]` | Contenido de un índice o documento, o de una sección; con `--expand`/`--depth`, también el de sus vecinos. Sobre un archivo de código responde que se lee directo. |
-| `graph neighbors <ruta>[#sección] [--in\|--out]` | Relaciones entrantes y salientes de un archivo, carpeta o documento. |
+| `graph neighbors <ruta>[#sección] [--in\|--out]` | De un archivo: las líneas `origen → destino` en las que aparece, en cualquier índice, y qué documentos lo mencionan. De una carpeta o documento: además, sus enlaces salientes y entrantes. |
 | `graph subgraph <ruta> [--depth N] [--json]` | Todo lo que hay a N saltos. |
 | `graph search [texto] [--filter campo=valor] [--regex]` | Búsqueda en índices y documentos; cada resultado dice su sección. |
 | `graph status` | Conteo de índices por estado, chequeo grafo↔HEAD y estado del Watcher. |
@@ -164,12 +167,14 @@ pruebas y plantillas (`graph ignore` las lista). Distinguen mayúsculas, como to
 El estado es de la carpeta, no de cada archivo.
 
 - **ok**: tiene `## Propósito` y la carpeta tiene los mismos archivos que cuando se confirmó.
-- **desactualizado**: desde la última confirmación a la carpeta le entraron, salieron o se le
-  renombraron archivos, o un enlace del índice apunta a un archivo o función que ya no existe.
+- **desactualizado**: desde la última confirmación a la carpeta le entraron o salieron archivos (un
+  renombre es las dos cosas), un enlace del índice apunta a un archivo o función que ya no existe, o el
+  índice se escribió a mano y nunca se confirmó.
   **Editar el cuerpo de un archivo no lo desactualiza**: decidir si ese cambio altera lo que el índice
   dice es el paso 2 del cierre. El hash de cada archivo se guarda solo para que `graph diff` diga cuáles cambiaron.
 - **faltante**: el índice no existe o su `## Propósito` está vacío.
-- **trivial**: carpeta que solo tiene archivos que caen en `.graph/trivial`. Cuenta como completa.
+- **trivial**: sin propósito, pero la carpeta no tiene archivos propios que lo pidan: ninguno (solo
+  subcarpetas) o todos caen en `.graph/trivial`. Cuenta como completa.
 - **huérfano**: el índice sigue, pero la carpeta ya no existe (`graph prune`).
 - **pendiente por crear** (en enlaces): un `[[...]]` apunta a algo que todavía no existe (típico desde Plan).
 
@@ -190,7 +195,8 @@ puede enlazar, pero no cuenta para pedirle contenido a su carpeta: una carpeta d
   de la carpeta no se listan.
 - **Todo enlace lleva texto a mostrar** y la ruta desde la raíz del proyecto:
   - a un archivo de código: `[[src/db/conexion.go|conexion.go]]`;
-  - a una función de un archivo: `[[src/db/conexion.go#conectar|conectar]]`;
+  - a una función de un archivo: `[[src/db/conexion.go#conectar|conectar]]` (se comprueba que el
+    nombre siga apareciendo en el archivo, en cualquier lenguaje);
   - a una carpeta (su índice) o a una sección de él: `[[src/db|db]]`, `[[src/db#Transacciones|transacciones]]`;
   - a un documento: `[[Estado_Proyecto/Decisiones.md#uso_de_hash|uso_de_hash]]`.
 
@@ -227,6 +233,6 @@ solo si dudas, la primera vez que la uses; si ya está en tu contexto, no la rel
 - No detecta que un cambio dentro de un archivo dejó viejo lo que dice el índice: solo avisa por
   archivos que entran o salen y por enlaces que dejan de resolver.
 - No convierte en arista los enlaces `📁 Carpetas`/`📄 Archivos` de un índice: son estructura, no relación.
-- Solo en Python y Go comprueba que la función de un enlace `archivo#función` exista.
+- De un enlace `archivo#función` solo comprueba que el nombre aparezca en el archivo, no que sea una función.
 - `.graph` es un repo git anidado **sin remoto**: personal por máquina, nunca se sube. Ahí viven
   también las instantáneas de `graph diff`; sin git no hay instantáneas.

@@ -12,7 +12,7 @@ import pytest
 from grafo_ia import graph_io
 from grafo_ia.graph_io import Graph
 
-from conftest import assert_sano, write_twin
+from conftest import assert_sano, write_index
 
 
 def _graph_dir(tmp_path):
@@ -122,13 +122,13 @@ def test_lock_de_proceso_muerto_se_libera(tmp_path):
 
 
 def test_dos_enlaces_misma_arista(initialized, run):
-    write_twin(initialized, "src/main.go.md", "## a\n[[src/features/login.go.md|l]]\n## b\n[[src/features/login.go.md#x|l]]\n")
-    run(initialized, "update", "src/main.go")
+    write_index(initialized, "src", "## a\n[[src/features/login.go|l]]\n## b\n[[src/features/login.go#x|l]]\n")
+    run(initialized, "update", "src")
     g = graph_io.load(initialized)
-    assert [e for e in g.edges if e[0] == "src/main.go.md"] == [("src/main.go.md", "src/features/login.go.md")]
+    assert [e for e in g.edges if e[0] == "src/src.md"] == [("src/src.md", "src/features/login.go")]
 
 
 @pytest.mark.skipif(pytest.importorskip("networkx") is None, reason="sin networkx")
 def test_to_networkx(initialized):
     nxg = graph_io.to_networkx(graph_io.load(initialized))
-    assert nxg.is_directed() and "src/main.go.md" in nxg
+    assert nxg.is_directed() and "src/main.go" in nxg

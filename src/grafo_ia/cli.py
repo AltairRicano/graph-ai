@@ -37,7 +37,7 @@ MODULES = (init, add, populate, ignore, trivial, remove, update, multiedit, mv, 
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="graph", description="Grafo bidireccional de gemelos markdown para contexto de IA.")
+    p = argparse.ArgumentParser(prog="graph", description="Grafo de un proyecto de código para contexto de IA: los archivos son los nodos y cada carpeta tiene su índice.")
     p.add_argument("-C", metavar="DIR", help="correr como si se invocara desde DIR")
     p.add_argument("--version", action="version", version=f"grafo_ia {__version__}")
     sub = p.add_subparsers(dest="command", metavar="<comando>")

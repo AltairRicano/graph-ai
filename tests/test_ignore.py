@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from grafo_ia.exclusion import load_user_rules
 
-from conftest import assert_sano, load, write, write_twin
+from conftest import assert_sano, load, write, write_index
 
 
 def test_agentes_en_la_raiz_nunca_se_espeja(project, run):
@@ -14,7 +14,7 @@ def test_agentes_en_la_raiz_nunca_se_espeja(project, run):
     assert code == 0, out
     nodes = load(project).nodes
     assert not any(n.startswith("agentes/") for n in nodes)
-    assert "src/agentes/bot.go.md" in nodes  # solo la de la raíz es operativa
+    assert "src/agentes/bot.go" in nodes  # solo la de la raíz es operativa
     assert_sano(project)
 
 
@@ -32,19 +32,21 @@ def test_ignore_agrega_regla_y_saca_del_grafo(initialized, run):
     assert code == 0 and "ya estaba: features" in out
     # y una reconciliación no lo regresa
     run(initialized, "add")
-    assert "src/features/login.go.md" not in load(initialized).nodes
+    assert "src/features/login.go" not in load(initialized).nodes
 
 
 def test_ignore_no_borra_contenido_sin_force(initialized, run):
-    write_twin(initialized, "src/features/login.go.md", "Login.\n")
+    write_index(initialized, "src/features", "Login.\n")
     before = (initialized / ".graph/exclude").read_text()
-    code, out = run(initialized, "ignore", "login.go")
-    assert code == 2 and "src/features/login.go.md" in out and "--force" in out
+    code, out = run(initialized, "ignore", "features")
+    assert code == 2 and "src/features/features.md" in out and "--force" in out
     assert (initialized / ".graph/exclude").read_text() == before
-    assert "src/features/login.go.md" in load(initialized).nodes
-    code, out = run(initialized, "ignore", "login.go", "--force")
+    assert "src/features/features.md" in load(initialized).nodes
+    assert run(initialized, "ignore", "login.go")[0] == 0  # un archivo no tiene documento que perder
+    assert "src/features/login.go" not in load(initialized).nodes
+    code, out = run(initialized, "ignore", "features", "--force")
     assert code == 0, out
-    assert "src/features/login.go.md" not in load(initialized).nodes
+    assert "src/features/features.md" not in load(initialized).nodes
     assert_sano(initialized)
 
 
@@ -53,7 +55,7 @@ def test_ignore_remove_regresa_lo_excluido(initialized, run):
     code, out = run(initialized, "ignore", "--remove", "features")
     assert code == 0, out
     assert "regla quitada: features" in out
-    assert "src/features/pagos/cobro.go.md" in load(initialized).nodes
+    assert "src/features/pagos/cobro.go" in load(initialized).nodes
     assert "features" not in [ln.strip() for ln in (initialized / ".graph/exclude").read_text().splitlines()]
     assert_sano(initialized)
 
@@ -65,7 +67,7 @@ def test_ignore_anclado_a_la_raiz(initialized, run):
     code, out = run(initialized, "ignore", "/generado")
     assert code == 0, out
     nodes = load(initialized).nodes
-    assert "generado/a.py.md" not in nodes and "src/generado/b.py.md" in nodes
+    assert "generado/a.py" not in nodes and "src/generado/b.py" in nodes
     assert_sano(initialized)
 
 
@@ -83,11 +85,11 @@ def test_reglas_iniciales_se_escriben_y_se_pueden_quitar(project, run):
     exclude = (project / ".graph/exclude").read_text(encoding="utf-8")
     assert "*.md" in exclude and "tests" in exclude and "LICENSE*" in exclude
     nodes = load(project).nodes
-    assert "docs/guia.md.md" not in nodes and "tests/ayudas.py.md" not in nodes
+    assert "docs/guia.md" not in nodes and "tests/ayudas.py" not in nodes
     code, out = run(project, "ignore", "--remove", "tests")
     assert code == 0, out
     nodes = load(project).nodes
-    assert "tests/ayudas.py.md" in nodes and "docs/guia.md.md" not in nodes
+    assert "tests/ayudas.py" in nodes and "docs/guia.md" not in nodes
     assert "tests" not in load_user_rules(project)
     assert run(project, "init", "--yes", "--no-git")[0] == 0  # reinicializar no la vuelve a poner
     assert "tests" not in load_user_rules(project)

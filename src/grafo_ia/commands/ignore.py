@@ -23,7 +23,7 @@ from grafo_ia.exclusion import EXCLUDE_FILE, EXCLUIR, Exclusion, load_user_rules
 from grafo_ia.graph_io import Graph
 from grafo_ia.paths import graph_dir, project_rel
 from grafo_ia.reconciliation import reconcile, summary
-from grafo_ia.states import twin_has_content
+from grafo_ia.states import index_has_content
 
 DEFAULTS = (
     "carpetas ocultas (salvo .github), dependencias/build (node_modules, dist, venv, ...), "
@@ -36,7 +36,7 @@ def register(sub) -> None:
     p.add_argument("patrones", nargs="*", metavar="patrón",
                    help="nombre suelto = en cualquier nivel (admite comodines); con '/' = desde la raíz ('/generado')")
     p.add_argument("--remove", action="store_true", help="quita las reglas en vez de agregarlas")
-    p.add_argument("--force", action="store_true", help="permite borrar gemelos con contenido")
+    p.add_argument("--force", action="store_true", help="permite borrar índices con contenido")
     p.set_defaults(func=run)
 
 
@@ -81,10 +81,10 @@ def _add(root: Path, patterns: list[str], force: bool) -> int:
         exclusion = Exclusion(root, sniff_binary=False)
         exclusion.user_rules.extend(new)
         ids = excluded_nodes(exclusion, graph)
-        with_content = sorted(i for i in ids if graph.tipo(i) == "codigo" and twin_has_content(cache, i))
+        with_content = sorted(i for i in ids if graph.tipo(i) == "indice" and index_has_content(cache, i))
         if with_content and not force:
             listed = "".join(f"\n  - {i}" for i in with_content)
-            raise GraphError(f"ignorar eso borraría {plural(len(with_content), 'gemelo')} con contenido:{listed}\n"
+            raise GraphError(f"ignorar eso borraría {plural(len(with_content), 'índice')} con contenido:{listed}\n"
                              f"repite con --force si es lo que quieres (no se escribió ninguna regla)")
         if new:
             _write_rules(root, lambda r: True, new)
@@ -98,7 +98,7 @@ def _add(root: Path, patterns: list[str], force: bool) -> int:
     if res.removed:
         print_result(res, "fuera del grafo")
     if with_content:
-        print(f"[AVISO] se borraron {plural(len(with_content), 'gemelo')} con contenido; "
+        print(f"[AVISO] se borraron {plural(len(with_content), 'índice')} con contenido; "
               f"lo último commiteado sigue en el historial de .graph")
     return 0
 

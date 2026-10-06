@@ -174,10 +174,10 @@ def run(args) -> int:
     for old, new in sorted(mapping.items()):
         print(f"  {old} -> {new}")
     if touched:
-        print(f"gemelos con enlaces reescritos: {len(touched)}")
+        print(f"documentos con enlaces reescritos: {len(touched)}")
         for s, n in sorted(touched.items()):
             print(f"  ~ {s} ({plural(n, 'enlace')})")
     if not (root / new_rel).exists():
         print(f"[AVISO] {new_rel} todavía no existe en el proyecto; mueve el código también "
-              f"o quedará huérfano.")
+              f"o la siguiente reconciliación lo sacará del grafo.")
     return 0

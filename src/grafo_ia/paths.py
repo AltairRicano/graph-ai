@@ -1,11 +1,13 @@
-"""Rutas del proyecto, ids de nodo y gemelos.
+"""Rutas del proyecto, ids de nodo y documentos de `.graph`.
 
-Convenciones (ver nota "Schema y Decisiones Técnicas"):
-- id = ruta del gemelo dentro de `.graph`, sin el prefijo, siempre con `/`.
-- archivo `src/main.go`   -> id `src/main.go.md`
-- carpeta `src/features`  -> id `src/features/features.md` (su índice)
+Convenciones:
+- archivo `src/main.go`   -> id `src/main.go`: el nodo es el propio archivo de
+  código, no tiene documento en `.graph`.
+- carpeta `src/features`  -> id `src/features/features.md` (su índice, la ruta
+  del documento dentro de `.graph`)
 - raíz del proyecto       -> id `Index.md` (el maestro)
 - Estado_Proyecto es virtual: solo existe dentro de `.graph`.
+Siempre con `/`.
 """
 
 from __future__ import annotations
@@ -73,7 +75,7 @@ def parent_rel(rel: str) -> str:
 
 
 def code_id(rel: str) -> str:
-    return f"{rel}.md"
+    return rel
 
 
 def folder_id(rel: str) -> str:
@@ -110,7 +112,7 @@ def project_rel(node_id: str, tipo: str) -> str | None:
     if is_estado(node_id):
         return None
     if tipo == "codigo":
-        return node_id[:-3]
+        return node_id
     if tipo == "indice":
         return folder_rel_of_index(node_id)
     return None
@@ -155,13 +157,13 @@ def split_section(arg: str) -> tuple[str, str | None]:
 def resolve_arg(root: Path, nodes: dict, arg: str, cwd: Path | str | None = None, allow_section: bool = False) -> Target:
     """Traduce un argumento de ruta del usuario a un nodo.
 
-    Rechaza rutas dentro de `.graph`: los comandos reciben rutas del proyecto,
-    nunca gemelos (así un índice no puede ser blanco directo por construcción).
+    Rechaza rutas dentro de `.graph`: los comandos reciben rutas del proyecto
+    (un índice se nombra con la ruta de su carpeta).
     """
     path, section = split_section(arg) if allow_section else (arg, None)
     rel = to_rel(root, path or ".", cwd)
     if rel == GRAPH_DIR or rel.startswith(GRAPH_DIR + "/"):
-        raise GraphError("los comandos reciben rutas del proyecto, no rutas de gemelo dentro de .graph")
+        raise GraphError("los comandos reciben rutas del proyecto, no rutas dentro de .graph")
 
     real_estado = (root / ESTADO_DIR).exists()
     if not real_estado and (rel == ESTADO_DIR or rel.startswith(ESTADO_DIR + "/")):

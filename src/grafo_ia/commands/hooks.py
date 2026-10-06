@@ -6,8 +6,8 @@ principal. Los hooks del repo principal son shims de shell que llaman a
 Todos avisan y ninguno bloquea, salvo `pre-commit` en modo estricto.
 
 Aparte de git, `graph hook claude-stop` es un hook `Stop` para Claude Code:
-no deja terminar el turno si el código tocado y sin commitear tiene gemelos
-faltantes o desactualizados. No lo instala nadie: se declara a mano en el
+no deja terminar el turno si las carpetas con código tocado y sin commitear
+tienen su índice faltante o desactualizado. No lo instala nadie: se declara a mano en el
 `settings.json` del agente.
 """
 
@@ -22,13 +22,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-from grafo_ia import graph_io, settings, states, trivial
+from grafo_ia import graph_io, settings, states
 from grafo_ia.commands._common import cwd_of
 from grafo_ia.edges import TwinCache
 from grafo_ia.errors import GraphError, NoGraphError
 from grafo_ia.exclusion import Exclusion
-from grafo_ia.hashing import hash_bytes
-from grafo_ia.paths import GRAPH_DIR, code_id, find_root, graph_dir, to_rel
+from grafo_ia.paths import GRAPH_DIR, find_root, graph_dir, to_rel
 
 HOOKS = ("pre-commit", "post-commit", "post-checkout", "post-merge", "post-rewrite")
 MARKER = "# grafo_ia: hook instalado por `graph init`"
@@ -241,33 +240,16 @@ def pre_commit(root: Path, argv: list[str]) -> int:
     staged = [(rel, p) for rel, p in staged if excl.is_included(rel, False)]
     graph = graph_io.load(root)
     cache = TwinCache(root)
-    top_path = {rel: p for rel, p in staged}
-
-    def staged_hash(rel: str) -> str | None:
-        r = subprocess.run(["git", "show", f":{top_path[rel]}"], cwd=str(top), capture_output=True)
-        return hash_bytes(r.stdout) if r.returncode == 0 else None
-
-    trivial_rules = trivial.load_rules(root)
-    grave: list[str] = []
-    for rel, _ in staged:
-        node = graph.nodes.get(code_id(rel))
-        if node is None:
-            if trivial.is_trivial(trivial_rules, rel):
-                continue
-            grave.append(f"faltante: {rel} (ni siquiera está en el grafo; corre `graph add`)")
-            continue
-        state = states.code_state(root, node, cache, staged_hash, trivial_rules)
-        if state in (states.FALTANTE, states.DESACTUALIZADO):
-            grave.append(f"{state}: {rel}")
-    # prioridad: desactualizados (el gemelo miente) antes que faltantes (vacíos)
-    grave.sort(key=lambda g: not g.startswith(states.DESACTUALIZADO))
     rep = states.report(root, graph, [rel for rel, _ in staged], cache) if staged else states.Report()
+    # prioridad: desactualizados (el índice ya no describe la carpeta) antes que faltantes (vacíos)
+    grave = ([f"{states.DESACTUALIZADO}: {d}" for d in rep.describe(rep.desactualizados)]
+             + [f"{states.FALTANTE}: {d}" for d in rep.describe(rep.faltantes)])
     strict = settings.get_flag(root, "strict")
     if grave:
-        print("[WARNING] grafo: gemelos que no están al día en lo que vas a commitear:")
+        print("[WARNING] grafo: índices que no están al día en las carpetas que vas a commitear:")
         for g in grave:
             print(f"  - {g}")
-        print("  Escribe/actualiza el gemelo y confírmalo con `graph update <ruta>`.")
+        print("  Escríbelos con `graph multiedit` (o a mano y confírmalos con `graph update <carpeta>`).")
     if rep.pendientes:
         print("grafo (informativo): pendientes por crear en lo staged:")
         for p in rep.pendientes:
@@ -342,10 +324,10 @@ def post_merge(root: Path, argv: list[str]) -> int:
         return 0
     rep = states.report(root, graph_io.load(root), rels, links=False)
     if rep.faltantes or rep.desactualizados:
-        print("[WARNING] grafo: el merge trajo código sin gemelo al día:")
-        for r in rep.faltantes:
+        print("[WARNING] grafo: el merge trajo código a carpetas sin índice al día:")
+        for r in rep.describe(rep.faltantes):
             print(f"  - faltante: {r}")
-        for r in rep.desactualizados:
+        for r in rep.describe(rep.desactualizados):
             print(f"  - desactualizado: {r}")
     return 0
 
@@ -393,9 +375,9 @@ def uncommitted(root: Path) -> list[str]:
 
 
 def claude_stop(root: Path, payload: dict) -> int:
-    """Hook `Stop` de Claude Code: bloquea el cierre del turno si lo tocado no tiene gemelo al día.
+    """Hook `Stop` de Claude Code: bloquea el cierre del turno si lo tocado no tiene su índice al día.
 
-    Solo mira el código con cambios sin commitear, así un repo con cientos de
+    Solo mira las carpetas con código sin commitear, así un repo con cientos de
     faltantes viejos no impide terminar. Si el agente ya viene de un bloqueo
     (`stop_hook_active`) deja pasar: avisar una vez, no encerrarlo en un bucle.
     """
@@ -406,20 +388,17 @@ def claude_stop(root: Path, payload: dict) -> int:
     if not rels:
         return 0
     graph = graph_io.load(root)
-    rep = states.report(root, graph, rels, links=False)
-    trivial_rules = trivial.load_rules(root)
-    sin_nodo = [r for r in rels if code_id(r) not in graph.nodes and (root / r).is_file()
-                and not trivial.is_trivial(trivial_rules, r)]
-    pend = ([f"desactualizado: {r}" for r in rep.desactualizados] + [f"faltante: {r}" for r in rep.faltantes]
-            + [f"faltante: {r} (aún no está en el grafo)" for r in sin_nodo])
+    rep = states.report(root, graph, rels)
+    pend = ([f"desactualizado: {d}" for d in rep.describe(rep.desactualizados)]
+            + [f"faltante: {d}" for d in rep.describe(rep.faltantes)])
     if not pend:
         return 0
-    print("grafo: el código que tocaste tiene gemelos que no están al día:", file=sys.stderr)
+    print("grafo: las carpetas que tocaste tienen su índice sin poner al día:", file=sys.stderr)
     for line in pend[:STOP_LISTED]:
         print(f"  - {line}", file=sys.stderr)
     if len(pend) > STOP_LISTED:
         print(f"  ... y {len(pend) - STOP_LISTED} más (`graph incomplete`)", file=sys.stderr)
-    print("Escríbelos con `graph multiedit` (confirma la sincronía él mismo) antes de terminar.", file=sys.stderr)
+    print("Escríbelos con `graph multiedit` (`=== carpeta#Sección ===`; confirma él mismo) antes de terminar.", file=sys.stderr)
     return EXIT_CLAUDE_BLOCK
 
 

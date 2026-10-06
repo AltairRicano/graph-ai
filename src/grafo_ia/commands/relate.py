@@ -38,7 +38,7 @@ def run(args) -> int:
                 raise GraphError(f"{arg} no está en el grafo")
         rels = graph.relations(src.node_id, dst.node_id)
         if rels is None:
-            raise GraphError(f"no existe la arista {src.node_id} -> {dst.node_id}: el gemelo de origen tiene que "
+            raise GraphError(f"no existe la arista {src.node_id} -> {dst.node_id}: el documento de origen tiene que "
                              f"mencionar al destino con [[...]] (y regenerarse con `graph update`)")
         new = list(rels)
         for r in args.add:

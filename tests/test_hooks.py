@@ -6,7 +6,7 @@ import shutil
 
 import pytest
 
-from conftest import git, write, write_twin
+from conftest import git, write, write_index
 
 pytestmark = pytest.mark.skipif(shutil.which("git") is None, reason="sin git")
 
@@ -49,7 +49,7 @@ def test_pre_commit_avisa_y_deja_pasar(repo):
     git(repo, "add", "src/main.go")
     r = git(repo, "commit", "-m", "cambio", check=False)
     assert r.returncode == 0
-    assert "[WARNING]" in r.stdout + r.stderr and "src/main.go" in r.stdout + r.stderr
+    assert "[WARNING]" in r.stdout + r.stderr and "faltante: src: sin" in r.stdout + r.stderr
 
 
 def test_pre_commit_estricto_bloquea(repo, run):
@@ -61,17 +61,21 @@ def test_pre_commit_estricto_bloquea(repo, run):
     assert git(repo, "commit", "-qm", "sin verificar", "--no-verify", check=False).returncode == 0
 
 
-def test_pre_commit_usa_lo_staged(repo, run):
-    write_twin(repo, "src/main.go.md", "principal\n")
-    run(repo, "update", "src/main.go")
+def test_pre_commit_mira_solo_las_carpetas_de_lo_staged(repo, run):
+    write_index(repo, "", "", purpose="Raíz del proyecto.")
+    run(repo, "update", ".")
     run(repo, "config", "strict", "on")
     write(repo, "src/main.go", "package main\n// en disco, sin stagear\n")
     write(repo, "Makefile", "# otro\n")
-    write_twin(repo, "Makefile.md", "readme\n")
-    run(repo, "update", "Makefile")
     git(repo, "add", "Makefile")
-    # main.go cambió en disco pero no está staged: no cuenta
+    # src no tiene propósito, pero nada de src está staged: no cuenta
     assert git(repo, "commit", "-qm", "readme", check=False).returncode == 0
+    git(repo, "add", "src/main.go")
+    r = git(repo, "commit", "-m", "main", check=False)
+    assert r.returncode != 0 and "faltante: src: sin `## Propósito`" in r.stdout + r.stderr
+    write_index(repo, "src", "", purpose="Punto de entrada.")
+    run(repo, "update", "src")
+    assert git(repo, "commit", "-qm", "main", check=False).returncode == 0  # editar main.go no desactualiza
 
 
 def test_post_commit_espejo_con_trailer(repo):
@@ -108,7 +112,7 @@ def test_post_checkout_archivo_no_hace_nada(repo):
 
 def test_post_checkout_graph_sucio_no_se_mueve(repo):
     before = nested(repo, "rev-parse", "--abbrev-ref", "HEAD")
-    write_twin(repo, "src/main.go.md", "sin commitear\n")
+    write_index(repo, "src", "sin commitear\n")
     r = git(repo, "checkout", "-b", "otra")
     assert "cambios sin commitear" in r.stdout + r.stderr
     assert nested(repo, "rev-parse", "--abbrev-ref", "HEAD") == before
@@ -135,7 +139,7 @@ def test_post_merge_avisa_faltantes(repo):
     git(repo, "commit", "-qm", "desde feature", "--no-verify")
     git(repo, "checkout", "-q", "main")
     r = git(repo, "merge", "--ff-only", "feature")
-    assert "faltante: src/merge.go" in r.stdout + r.stderr
+    assert "faltante: src: sin" in r.stdout + r.stderr
 
 
 def test_post_rewrite_amend_y_rebase(repo):

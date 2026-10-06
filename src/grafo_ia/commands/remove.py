@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from grafo_ia import graph_io, snapshots
+from grafo_ia import graph_io
 from grafo_ia.commands._common import cwd_of, plural, root_of
 from grafo_ia.commands.populate import populate
 from grafo_ia.edges import Resolver, TwinCache, is_structural
@@ -68,16 +68,14 @@ def remove_nodes(root: Path, graph: Graph, ids: set[str], cache: TwinCache | Non
     for s, text in new_texts.items():
         write_text_atomic(twin_path(root, s), text)
         cache.put(s, text)
-    blobs = {graph.nodes[i].get(snapshots.ATTR) for i in ids if i in graph.nodes}
     for i in sorted(ids, key=lambda x: -x.count("/")):
-        p = twin_path(root, i)
-        if p.is_file():
-            p.unlink()
-        prune_empty_dirs(p.parent, graph_dir(root))
+        if graph.tipo(i) != "codigo":  # un nodo de código no tiene documento que borrar
+            p = twin_path(root, i)
+            if p.is_file():
+                p.unlink()
+            prune_empty_dirs(p.parent, graph_dir(root))
         graph.remove_node(i)
         cache.forget(i)
-    for blob in blobs:
-        snapshots.release(root, graph, blob)
     return res
 
 
@@ -86,7 +84,7 @@ def print_result(res: RemoveResult, verb: str = "eliminados") -> None:
     for r in res.removed:
         print(f"  - {r}")
     if res.touched:
-        print(f"gemelos tocados (enlaces reducidos a su texto): {len(res.touched)}")
+        print(f"documentos tocados (enlaces reducidos a su texto): {len(res.touched)}")
         for s, n in sorted(res.touched.items()):
             print(f"  ~ {s} ({plural(n, 'enlace')})")
 
@@ -114,5 +112,5 @@ def run(args) -> int:
     code = root / target.rel
     if code.exists() and Exclusion(root).is_included(target.rel):
         print(f"[AVISO] {target.rel} sigue existiendo en el proyecto: la siguiente reconciliación "
-              f"(add/init/watcher) lo regresará como faltante. Para que no vuelva, usa `graph ignore {target.rel}`.")
+              f"(add/init/watcher) lo regresará al grafo. Para que no vuelva, usa `graph ignore {target.rel}`.")
     return 0

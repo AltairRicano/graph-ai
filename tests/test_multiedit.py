@@ -10,9 +10,11 @@ import pytest
 
 from grafo_ia import templates
 
-from conftest import git, load, read_twin, write, write_twin
+from conftest import assert_sano, git, load, read_twin, write, write_index
 
 HOY = templates.today()
+SRC = "src/src.md"
+FEATURES = "src/features/features.md"
 
 
 @pytest.fixture
@@ -32,106 +34,115 @@ def _status(run, root):
 
 
 # ---- multiedit ---------------------------------------------------------------------
-def test_llena_varios_gemelos_y_los_sincroniza(initialized, run, batch):
+def test_llena_varios_indices_y_los_confirma(initialized, run, batch):
     code, out = batch(initialized, (
-        "=== src/main.go ===\n"
-        "Punto de entrada.\n\n## Funciones\n\n### main\n**Qué hace:** arranca con `$HOME` y \"comillas\".\n"
-        "=== src/features/login.go ===\n"
-        "Login, usa [[src/main.go.md#main|main]].\n"
+        "=== src#Propósito ===\n"
+        "Punto de entrada: arranca con `$HOME` y \"comillas\".\n"
+        "=== src/features#Propósito ===\n"
+        "Login, usa [[src/main.go#main|main]].\n"
+        "=== src/features#Relaciones ===\n"
+        "- [[src/features/login.go|login.go]] → [[src/main.go|main.go]]: arranca la sesión.\n"
     ))
     assert code == 0, out
-    assert out.splitlines()[0] == "multiedit: 2 gemelos escritos y sincronizados"
-    main = read_twin(initialized, "src/main.go.md")
-    assert main.startswith("---\ntipo: codigo\n")  # el frontmatter se conserva
-    assert f"### main\n**Elaboración:** {HOY} | **Actualización:** {HOY}\n\n**Qué hace:** arranca con `$HOME`" in main
-    s = _status(run, initialized)
-    assert s["ok"] == "2" and s["faltante"] == "2"
-    assert load(initialized).relations("src/features/login.go.md", "src/main.go.md") == ["conoce"]
+    assert "2 documentos escritos y confirmados" in out and "[AVISO]" not in out
+    src = read_twin(initialized, SRC)
+    assert src.startswith("---\ntipo: indice\n")
+    assert f"## Propósito\n**Elaboración:** {HOY} | **Actualización:** {HOY}\n\nPunto de entrada: arranca con `$HOME` y \"comillas\".\n" in src
+    assert "- [[src/main.go|main.go]]" in src  # la lista de archivos sigue ahí
+    g = load(initialized)
+    assert g.nodes[SRC]["archivos_confirmados"] == ["main.go"]
+    assert g.nodes["src/main.go"]["last_synced_hash"]
+    assert g.relations(FEATURES, "src/main.go") == ["conoce"]
+    status = _status(run, initialized)
+    assert (status["ok"], status["faltante"], status["desactualizado"]) == ("2", "2", "0")
+    assert_sano(initialized)
+
+
+def test_un_archivo_de_codigo_no_es_un_blanco(initialized, batch):
+    before = read_twin(initialized, SRC)
+    code, out = batch(initialized, "=== src#Propósito ===\nEntrada.\n=== src/main.go ===\nNo.\n=== src/main.go#main ===\nTampoco.\n")
+    assert code == 2 and "no se aplicó nada" in out
+    assert out.count("es un archivo de código") == 2 and "comentario" in out
+    assert read_twin(initialized, SRC) == before
 
 
 def test_seccion_reemplaza_y_conserva_elaboracion(initialized, batch):
-    write_twin(initialized, "src/main.go.md", (
-        "Entrada.\n\n## Funciones\n\n### main\n**Elaboración:** 2026-01-01 | **Actualización:** 2026-01-02\n\nViejo.\n\n"
-        "### otra\n**Elaboración:** 2026-01-01 | **Actualización:** 2026-01-02\n\nIntacta.\n"
-    ))
-    code, out = batch(initialized, "=== src/main.go#main ===\n### main\nNuevo.\n")
+    write_index(initialized, "src", "## redondeo\n**Elaboración:** 2026-01-01 | **Actualización:** 2026-01-01\n\nViejo.\n\n## otra\n**Elaboración:** 2026-01-02 | **Actualización:** 2026-01-02\n\nIgual.\n")
+    code, out = batch(initialized, "=== src#redondeo ===\n## redondeo\nNuevo.\n")
     assert code == 0, out
-    twin = read_twin(initialized, "src/main.go.md")
-    assert f"### main\n**Elaboración:** 2026-01-01 | **Actualización:** {HOY}\n\nNuevo.\n\n### otra" in twin
-    assert "Viejo" not in twin
-    # la sección que no se tocó conserva sus dos fechas
-    assert "### otra\n**Elaboración:** 2026-01-01 | **Actualización:** 2026-01-02\n\nIntacta.\n" in twin
-    assert f"fecha_actualizacion: {HOY}" in twin
+    src = read_twin(initialized, SRC)
+    assert f"## redondeo\n**Elaboración:** 2026-01-01 | **Actualización:** {HOY}\n\nNuevo.\n" in src
+    assert "## otra\n**Elaboración:** 2026-01-02 | **Actualización:** 2026-01-02\n\nIgual.\n" in src  # la que no se tocó no se mueve
+    assert "Viejo." not in src and src.count("## redondeo") == 1  # el heading repetido en el lote se descarta
 
 
-def test_seccion_nueva_va_a_funciones(initialized, batch):
-    write_twin(initialized, "src/main.go.md", "Entrada.\n\n## Funciones\n\n### main\nA.\n\n## Notas\nFin.\n")
-    code, out = batch(initialized, "=== src/main.go#helper ===\nAyuda a main.\n")
+def test_seccion_nueva_va_antes_de_las_listas(initialized, batch):
+    code, out = batch(initialized, "=== src#Propósito ===\nEntrada.\n=== src#Redondeo de centavos ===\nUna sola vez.\n=== src ===\n## Otra regla\nAl final del reporte.\n")
     assert code == 0, out
-    twin = read_twin(initialized, "src/main.go.md")
-    assert twin.index("### main") < twin.index("### helper") < twin.index("## Notas")
-    assert f"### helper\n**Elaboración:** {HOY} | **Actualización:** {HOY}\n\nAyuda a main.\n" in twin
+    src = read_twin(initialized, SRC)
+    order = [src.index(h) for h in ("## Propósito", "## Relaciones", "## Redondeo de centavos", "## Otra regla", "## 📁 Carpetas", "## 📄 Archivos")]
+    assert order == sorted(order)
+    assert f"## Otra regla\n**Elaboración:** {HOY} | **Actualización:** {HOY}\n\nAl final del reporte.\n" in src
+    assert "**Elaboración:**" not in src[src.index("## 📁 Carpetas"):]  # las listas no se fechan
+    assert "## Relaciones\n\n## Redondeo" in src  # una sección vacía que nadie tocó no gana fecha
 
 
-def test_override_y_append_por_entrada(initialized, batch):
-    write_twin(initialized, "src/main.go.md", "Viejo main.\n")
-    write_twin(initialized, "src/features/login.go.md", "Viejo login.\n")  # escrito a mano, nunca confirmado
-    code, out = batch(initialized, "=== src/main.go [override] ===\nNuevo main.\n=== src/features/login.go ===\nMás login.\n")
+def test_override_conserva_las_listas_y_append_agrega(initialized, batch):
+    write_index(initialized, "src", "## vieja\nSe va.\n")
+    code, out = batch(initialized, "=== src [override] ===\n## Propósito\nDe cero.\n=== src#Propósito [append] ===\nSegunda línea.\n")
     assert code == 0, out
-    assert "Viejo" not in read_twin(initialized, "src/main.go.md")
-    assert read_twin(initialized, "src/features/login.go.md").endswith("Viejo login.\n\nMás login.\n")
+    src = read_twin(initialized, SRC)
+    assert "Se va." not in src and "De cero.\n\nSegunda línea.\n" in src
+    assert "## 📁 Carpetas\n- [[src/features/features.md|features]]\n" in src and "- [[src/main.go|main.go]]" in src
+    assert "1 cuerpo reemplazado" in out
 
 
-def test_append_a_desactualizado_se_rechaza_y_no_aplica_nada(initialized, run, batch):
-    write_twin(initialized, "src/main.go.md", "Entrada.\n")
-    run(initialized, "update", "src/main.go")
-    write(initialized, "src/main.go", "package main\n// cambio\n")
-    before = read_twin(initialized, "src/features/login.go.md")
-    code, out = batch(initialized, "=== src/features/login.go ===\nLogin.\n=== src/main.go ===\nParche.\n")
-    assert code == 2 and "desactualizado" in out and "no se aplicó nada" in out
-    assert read_twin(initialized, "src/features/login.go.md") == before
-    # con sección sí pasa, y queda al día
-    code, out = batch(initialized, "=== src/main.go#main ===\nArranca.\n")
-    assert code == 0, out
-    assert _status(run, initialized)["desactualizado"] == "0"
+def test_las_listas_no_se_escriben(initialized, batch):
+    code, out = batch(initialized, "=== src#📄 Archivos ===\n- inventado\n")
+    assert code == 2 and "las mantiene el CLI" in out
 
 
 def test_ruta_inexistente_aborta_todo(initialized, batch):
-    before = read_twin(initialized, "src/main.go.md")
-    code, out = batch(initialized, "=== src/main.go ===\nEntrada.\n=== src/no_existe.go ===\nNada.\n")
-    assert code == 2 and "src/no_existe.go" in out
-    assert read_twin(initialized, "src/main.go.md") == before
+    before = read_twin(initialized, SRC)
+    code, out = batch(initialized, "=== src#Propósito ===\nEntrada.\n=== src/no_existe ===\nNada.\n=== node_modules ===\nExcluida.\n")
+    assert code == 2 and "no se aplicó nada" in out
+    assert "no existe en el proyecto ni en el grafo" in out and "está excluido del grafo" in out
+    assert read_twin(initialized, SRC) == before
 
 
-def test_archivo_nuevo_se_agrega_solo(initialized, run, batch):
-    write(initialized, "src/nuevo/util.go", "package nuevo\n")
-    code, out = batch(initialized, "=== src/nuevo/util.go ===\nUtilidades.\n")
+def test_carpeta_y_archivos_nuevos_entran_solos(initialized, run, batch):
+    write(initialized, "src/nuevo/uno.py", "def uno():\n    pass\n")
+    write(initialized, "src/otro.go", "package main\n")
+    code, out = batch(initialized, "=== src/nuevo#Propósito ===\nMódulo nuevo.\n=== src#Propósito ===\nEntrada.\n")
     assert code == 0, out
-    assert "1 archivo agregado al grafo" in out
+    assert "nodos nuevos en el grafo" in out
     g = load(initialized)
-    assert g.nodes["src/nuevo/util.go.md"].get("last_synced_hash")
-    assert "src/nuevo/nuevo.md" in g.nodes
-    assert "util.go" in read_twin(initialized, "src/nuevo/nuevo.md")
-    assert run(initialized, "doctor")[0] == 0
+    assert g.tipo("src/nuevo/nuevo.md") == "indice" and g.tipo("src/nuevo/uno.py") == "codigo"
+    assert g.nodes[SRC]["archivos_confirmados"] == ["main.go", "otro.go"]
+    src = read_twin(initialized, SRC)
+    assert "- [[src/nuevo/nuevo.md|nuevo]]" in src and "- [[src/otro.go|otro.go]]" in src  # listas al día
+    assert "src/nuevo" not in run(initialized, "incomplete", "src/nuevo")[1].split("faltantes")[1]
+    assert_sano(initialized)
 
 
 def test_lote_por_archivo_se_borra(initialized, run):
-    lote = initialized / "lote.txt"
-    lote.write_text("=== src/main.go ===\nEntrada.\n", encoding="utf-8")
-    code, out = run(initialized, "multiedit", "-f", "lote.txt")
-    assert code == 0, out
+    lote = write(initialized, "lote.txt", "=== src#Propósito ===\nEntrada.\n")
+    assert run(initialized, "multiedit", "-f", "lote.txt")[0] == 0
     assert not lote.exists()
-    assert read_twin(initialized, "src/main.go.md").endswith("Entrada.\n")
+    lote = write(initialized, "lote.txt", "=== src#Propósito ===\nOtra.\n")
+    assert run(initialized, "multiedit", "-f", "lote.txt", "--keep")[0] == 0
+    assert lote.exists() and "Otra." in read_twin(initialized, SRC)
 
 
 def test_estado_proyecto_por_seccion(initialized, batch):
-    code, out = batch(initialized, "=== Estado_Proyecto/Estado.md#Hecho ===\n- Login con [[src/features/login.go.md|login]].\n")
+    code, out = batch(initialized, "=== Estado_Proyecto/Estado.md#Hecho ===\n- Login con [[src/features/login.go|login]].\n")
     assert code == 0, out
     estado = read_twin(initialized, "Estado_Proyecto/Estado.md")
     assert "## Hecho\n- Login con" in estado and "## En curso" in estado
     assert "Lo que ya está completo" not in estado  # el texto guía de la sección se reemplazó
     assert "**Elaboración:**" not in estado  # Estado no lleva fechas por sección
-    assert load(initialized).relations("Estado_Proyecto/Estado.md", "src/features/login.go.md") == ["conoce"]
+    assert load(initialized).relations("Estado_Proyecto/Estado.md", "src/features/login.go") == ["conoce"]
+    assert batch(initialized, "=== Estado_Proyecto ===\nNo.\n")[0] == 2  # su índice solo lleva listas
 
 
 def test_decisiones_fecha_cada_decision(initialized, batch):
@@ -140,57 +151,99 @@ def test_decisiones_fecha_cada_decision(initialized, batch):
     assert f"## usar_hash\n**Elaboración:** {HOY} | **Actualización:** {HOY}\n\nPorque sí.\n" in read_twin(initialized, "Estado_Proyecto/Decisiones.md")
 
 
-def test_reporta_enlaces_rotos(initialized, batch):
-    code, out = batch(initialized, "=== src/main.go ===\nUsa [[src/features/login.go.md#no_hay|x]] y [[src/main.go.md]].\n")
+def test_reporta_enlaces_rotos_y_lo_que_sigue_incompleto(initialized, batch):
+    write(initialized, "src/main.go", "package main\n\nfunc main() {}\n\nfunc arrancar() {}\n")
+    code, out = batch(initialized, (
+        "=== src#Propósito ===\nVer [[src/nada.go|nada]], [[src/main.go#arrancar|arrancar]], "
+        "[[src/main.go#ya_no_esta|vieja]] y [[src/features]].\n"
+        "=== src/features#Relaciones ===\n- [[src/features/login.go|login.go]] → [[src/main.go|main.go]]: algo.\n"
+    ))
     assert code == 0, out
-    assert "enlaces por corregir (2)" in out and "no existe la sección 'no_hay'" in out and "sin texto a mostrar" in out
+    assert "enlaces por corregir (3)" in out
+    assert "[[src/nada.go|nada]] (no existe el destino)" in out
+    assert "'ya_no_esta' ya no aparece en src/main.go" in out and "arrancar]]" not in out.split("corregir")[1]
+    assert "(sin texto a mostrar)" in out
+    assert "índices que siguen incompletos (2)" in out
+    assert "src: 2 enlaces que no resuelven" in out and "src/features: sin `## Propósito`" in out
 
 
 def test_separador_dentro_de_bloque_de_codigo_no_corta(initialized, batch):
-    code, out = batch(initialized, "=== src/main.go ===\nEjemplo:\n```\n=== src/features/login.go ===\n```\nFin.\n")
+    code, out = batch(initialized, "=== src#Propósito ===\nEjemplo:\n```\n=== src/features ===\n```\nFin.\n")
     assert code == 0, out
-    assert "1 gemelo escrito" in out
-    assert "=== src/features/login.go ===" in read_twin(initialized, "src/main.go.md")
+    assert "=== src/features ===" in read_twin(initialized, SRC)
+    assert "1 documento escrito y confirmado" in out
 
 
 def test_lote_invalido(initialized, batch):
-    assert batch(initialized, "texto suelto\n=== src/main.go ===\nx\n")[0] == 2
     assert batch(initialized, "")[0] == 2
-    code, out = batch(initialized, "=== src ===\nUna carpeta.\n")
-    assert code == 2 and "carpeta" in out
-    code, out = batch(initialized, "=== src/main.go ===\n\n")
-    assert code == 2 and "sin contenido" in out
+    code, out = batch(initialized, "texto suelto\n=== src ===\nx\n")
+    assert code == 2 and "antes del primer separador" in out
+    code, out = batch(initialized, "=== src#Propósito ===\n\n")
+    assert code == 2 and "entrada sin contenido" in out
+    code, out = batch(initialized, "=== src#Propósito ===\n## Propósito\n")
+    assert code == 2 and "solo trae el heading" in out
 
 
-# ---- update con varias rutas -----------------------------------------------------
+# ---- estados por carpeta --------------------------------------------------------------
+def test_entrar_o_salir_archivos_desactualiza_y_editar_no(initialized, run, batch):
+    assert batch(initialized, "=== src/features#Propósito ===\nLogin.\n")[0] == 0
+    write(initialized, "src/features/login.go", "package features\n// otro cuerpo\n")
+    assert _status(run, initialized)["desactualizado"] == "0"  # editar el cuerpo no desactualiza
+    assert "~ login.go" in run(initialized, "diff", "src/features")[1]  # pero diff sí lo dice
+    write(initialized, "src/features/logout.go", "package features\n")
+    inc = run(initialized, "incomplete", "src/features/login.go")[1]  # un archivo pide su carpeta
+    assert "desactualizados (1)" in inc and "src/features: entraron: logout.go" in inc
+    assert "pagos" not in inc  # y solo esa carpeta, no las de adentro
+    out = run(initialized, "diff")[1]
+    assert "src/features (desactualizado)" in out and "+ logout.go" in out
+    (initialized / "src/features/login.go").unlink()
+    assert "entraron: logout.go; salieron: login.go" in run(initialized, "incomplete")[1]
+    assert batch(initialized, "=== src/features#Propósito [append] ===\nY logout.\n")[0] == 0  # escribir confirma
+    assert _status(run, initialized)["desactualizado"] == "0"
+    assert load(initialized).nodes[FEATURES]["archivos_confirmados"] == ["logout.go"]
+    assert "src/features/login.go" not in load(initialized).nodes
+    assert_sano(initialized)
+
+
+def test_indice_escrito_a_mano_pide_confirmarse(initialized, run):
+    write_index(initialized, "src", "## regla\nAlgo.\n")
+    assert "src: nunca se confirmó" in run(initialized, "incomplete")[1]
+    assert run(initialized, "update", "src")[0] == 0
+    assert _status(run, initialized)["desactualizado"] == "0"
+
+
+# ---- update ---------------------------------------------------------------------------
 def test_update_varias_rutas(initialized, run):
-    write_twin(initialized, "src/main.go.md", "A.\n")
-    write_twin(initialized, "src/features/login.go.md", "B.\n")
-    code, out = run(initialized, "update", "src/main.go", "src/features/login.go")
+    write_index(initialized, "src", "Ver [[src/features|features]].\n")
+    write_index(initialized, "src/features", "## login\nAlgo.\n")
+    code, out = run(initialized, "update", "src", "src/features", "Estado_Proyecto/Plan.md")
     assert code == 0, out
-    assert _status(run, initialized)["ok"] == "2"
+    assert "src: índice confirmado (1 archivo)" in out and "src/features: índice confirmado" in out
+    assert "+ src/features/features.md" in out and "Estado_Proyecto/Plan.md: aristas regeneradas" in out
 
 
-def test_update_varias_rutas_valida_antes_de_confirmar(initialized, run):
-    write_twin(initialized, "src/main.go.md", "A.\n")
-    code, _ = run(initialized, "update", "src/main.go", "src/features/login.go")  # el segundo está vacío
-    assert code == 2
-    assert not load(initialized).nodes["src/main.go.md"].get("last_synced_hash")
+def test_update_valida_todo_antes_de_confirmar(initialized, run):
+    write_index(initialized, "src", "Algo.\n")
+    code, out = run(initialized, "update", "src", "src/features")
+    assert code == 2 and "no tiene `## Propósito`" in out
+    assert "archivos_confirmados" not in load(initialized).nodes[SRC]  # no confirmó nada
+    code, out = run(initialized, "update", "src/main.go")
+    assert code == 2 and "es un archivo de código" in out and "graph update <carpeta>" in out
 
 
-# ---- triviales ------------------------------------------------------------------
+# ---- triviales ------------------------------------------------------------------------
 def test_trivial_no_cuenta_como_faltante(project, run):
-    write(project, "web/estilos.css", "a { color: red }\n")
-    write(project, "web/app.js", "console.log(1)\n")
+    write(project, "web/estilos/base.css", "body {}\n")
+    write(project, "web/estilos/tema.css", "a {}\n")
+    write(project, "web/app.js", "let a = 1\n")
     assert run(project, "init", "--yes", "--no-git")[0] == 0
-    s = _status(run, project)
-    assert s["trivial"] == "1" and s["faltante"] == "5"
-    assert "web/estilos.css" not in run(project, "incomplete")[1]
-    code, out = run(project, "update", "web/estilos.css")
-    assert code == 0 and "trivial" in out
-    # con contenido vuelve a las reglas normales
-    write_twin(project, "web/estilos.css.md", "Tokens de color del tema.\n")
-    assert _status(run, project)["desactualizado"] == "1"
+    status = _status(run, project)
+    assert status["faltante"] == "5"  # raíz, src, features, pagos y web
+    assert status["trivial"] == "1"  # web/estilos solo tiene estilos
+    inc = run(project, "incomplete")[1]
+    assert "web: sin `## Propósito`" in inc and "web/estilos" not in inc
+    write(project, "web/estilos/calculo.js", "let b = 2\n")  # ya tiene algo que contar
+    assert "web/estilos: sin `## Propósito`" in run(project, "incomplete")[1]
 
 
 def test_trivial_agregar_y_quitar(initialized, run):
@@ -202,14 +255,14 @@ def test_trivial_agregar_y_quitar(initialized, run):
     assert _status(run, initialized)["faltante"] == "4"
 
 
-def test_gemelo_extenso_se_avisa(initialized, run):
-    write_twin(initialized, "src/main.go.md", "x" * 3000 + "\n")
-    run(initialized, "update", "src/main.go")
-    assert "más largos que su código" in run(initialized, "incomplete")[1]
+def test_indice_extenso_se_avisa(initialized, run, batch):
+    code, out = batch(initialized, "=== src#Propósito ===\n" + "Relleno que repite el código. " * 200 + "\n")
+    assert code == 0, out
+    assert "índices más largos que el código de su carpeta" in out and "src:" in out
+    assert "índices más largos que el código de su carpeta" in run(initialized, "incomplete")[1]
 
 
-# ---- hook Stop de Claude Code --------------------------------------------------
-@pytest.mark.skipif(shutil.which("git") is None, reason="sin git")
+# ---- hook Stop ------------------------------------------------------------------------
 def test_claude_stop(project, run, monkeypatch):
     for k, v in {"GIT_AUTHOR_NAME": "T", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "T", "GIT_COMMITTER_EMAIL": "t@t"}.items():
         monkeypatch.setenv(k, v)
@@ -224,17 +277,32 @@ def test_claude_stop(project, run, monkeypatch):
 
     assert stop({})[0] == 0  # nada sin commitear: los faltantes viejos no bloquean
     write(project, "src/main.go", "package main\n// cambio\n")
-    write(project, "src/nuevo.go", "package main\n")
+    write(project, "lib/nuevo.go", "package lib\n")
     code, out = stop({})
-    assert code == 2 and "faltante: src/main.go" in out and "src/nuevo.go (aún no está en el grafo)" in out
+    assert code == 2 and "faltante: src: sin `## Propósito`" in out and "faltante: lib: aún no está en el grafo" in out
+    assert "features" not in out  # solo las carpetas tocadas
     assert stop({"stop_hook_active": True})[0] == 0  # no encierra al agente en un bucle
-    monkeypatch.setattr("sys.stdin", io.StringIO("=== src/main.go ===\nEntrada.\n=== src/nuevo.go ===\nNuevo.\n"))
+    monkeypatch.setattr("sys.stdin", io.StringIO("=== src#Propósito ===\nEntrada.\n=== lib#Propósito ===\nNuevo.\n"))
     assert run(project, "multiedit")[0] == 0
     assert stop({})[0] == 0
 
 
 def test_no_inventa_fechas_en_secciones_que_no_toco(initialized, batch):
-    write_twin(initialized, "src/main.go.md", "Entrada.\n\n## Funciones\n\n### vieja\nSin fechas.\n")
-    assert batch(initialized, "=== src/main.go#nueva ===\nReciente.\n")[0] == 0
-    twin = read_twin(initialized, "src/main.go.md")
-    assert "### vieja\nSin fechas.\n" in twin and f"### nueva\n**Elaboración:** {HOY}" in twin
+    write_index(initialized, "src", "## sin_fecha\nNadie la fechó.\n")
+    assert batch(initialized, "=== src#otra ===\nNueva.\n")[0] == 0
+    src = read_twin(initialized, SRC)
+    assert "## sin_fecha\nNadie la fechó.\n" in src
+    assert f"## otra\n**Elaboración:** {HOY} | **Actualización:** {HOY}\n\nNueva.\n" in src
+
+
+def test_carpeta_borrada_queda_huerfana_si_tenia_contenido(initialized, run, batch):
+    assert batch(initialized, "=== src/features/pagos#Propósito ===\nCobros.\n")[0] == 0
+    shutil.rmtree(initialized / "src/features/pagos")
+    assert run(initialized, "add")[0] == 0
+    g = load(initialized)
+    assert "src/features/pagos/pagos.md" in g.nodes and "src/features/pagos/cobro.go" not in g.nodes
+    assert "huérfanos (1)" in run(initialized, "incomplete")[1]
+    assert batch(initialized, "=== src/features/pagos#Propósito ===\nYa no.\n")[0] == 2
+    assert run(initialized, "prune")[0] == 0
+    assert "src/features/pagos/pagos.md" not in load(initialized).nodes
+    assert_sano(initialized)

@@ -13,10 +13,10 @@ from dataclasses import dataclass, field
 
 from grafo_ia import graph_io, parser, states
 from grafo_ia.commands._common import cwd_of, plural, root_of
-from grafo_ia.edges import Resolver, TwinCache, is_structural
+from grafo_ia.edges import Relation, Resolver, TwinCache, is_structural, relations
 from grafo_ia.errors import GraphError
 from grafo_ia.graph_io import Graph
-from grafo_ia.paths import resolve_arg
+from grafo_ia.paths import parent_rel, project_rel, resolve_arg
 
 
 @dataclass
@@ -24,7 +24,7 @@ class Neighbor:
     node_id: str
     relaciones: list[str]
     sections: set = field(default_factory=set)  # secciones del otro nodo (None = completo)
-    via: set = field(default_factory=set)  # headings del gemelo origen donde vive el enlace
+    via: set = field(default_factory=set)  # headings del documento origen donde vive el enlace
 
 
 def _load_target(args, allow_section=True):
@@ -63,7 +63,8 @@ def neighbors_of(graph: Graph, cache: TwinCache, node_id: str, section: str | No
             nb = Neighbor(s, rels)
             if sdoc is not None:
                 for link in parser.links(sdoc):
-                    if resolver.resolve(link.target, s)[0] == node_id and link.heading is not None:
+                    if (resolver.resolve(link.target, s)[0] == node_id and link.heading is not None
+                            and not is_structural(graph, s, sdoc, link)):
                         nb.sections.add(sdoc.headings[link.heading].text)
             inc[s] = nb
             continue
@@ -72,11 +73,14 @@ def neighbors_of(graph: Graph, cache: TwinCache, node_id: str, section: str | No
         for link in parser.links(sdoc):
             if not link.section or resolver.resolve(link.target, s)[0] != node_id:
                 continue
-            try:
-                h = parser.find_section(doc, link.section)
-            except GraphError:
-                continue
-            if target_heading is not None and h.line == target_heading.line:
+            if doc is None:  # archivo de código: la "sección" es el nombre de una función
+                same = link.section.strip().casefold() == section.strip().casefold()
+            else:
+                try:
+                    same = target_heading is not None and parser.find_section(doc, link.section).line == target_heading.line
+                except GraphError:
+                    continue
+            if same:
                 nb = inc.setdefault(s, Neighbor(s, rels))
                 if link.heading is not None:
                     nb.sections.add(sdoc.headings[link.heading].text)
@@ -143,9 +147,15 @@ def expand(graph: Graph, cache: TwinCache, start: str, section: str | None, dept
 def run_get(args) -> int:
     root, graph, t = _load_target(args)
     cache = TwinCache(root)
+    if t.kind == "codigo":
+        folder = parent_rel(t.rel) or "."
+        print(f"{t.rel} es un archivo de código: léelo directo, no tiene documento en el grafo.")
+        print(f"  índice de su carpeta: `graph get {folder}`")
+        print(f"  relaciones declaradas: `graph neighbors {t.rel}`")
+        return 0
     doc = cache.doc(t.node_id)
     if doc is None:
-        raise GraphError(f"el gemelo de {t.rel or t.node_id} todavía no existe (usa `graph populate`)")
+        raise GraphError(f"el índice de {t.rel or t.node_id} todavía no existe (usa `graph populate`)")
     content = parser.section_text(doc, t.section) if t.section else doc.text
     print(f"==> {t.node_id}{'#' + t.section if t.section else ''} <==")
     print(content.rstrip("\n"))
@@ -165,24 +175,45 @@ def run_get(args) -> int:
 
 
 # ---- neighbors ---------------------------------------------------------------
-def _reject_folder(graph: Graph, t, command: str) -> None:
-    if graph.tipo(t.node_id) == "indice":
-        shown = t.rel or "."
-        raise GraphError(f"{shown}: este elemento es una carpeta; `{command}` no aplica a carpetas. "
-                         f"Usa `graph get {shown}` para ver lo que contiene")
+def shown_id(graph: Graph, node_id: str) -> str:
+    """Un nodo como lo escribe el usuario: ruta de proyecto (carpeta para un índice, `.` la raíz)."""
+    rel = project_rel(node_id, graph.tipo(node_id) or "")
+    return node_id if rel is None else (rel or ".")
+
+
+def relations_of(graph: Graph, cache: TwinCache, node_id: str) -> list[Relation]:
+    """Líneas `origen → destino` de cualquier documento en las que participa el nodo."""
+    resolver = Resolver(graph.nodes)
+    docs = set(graph.adj_in.get(node_id, set()))
+    if graph.tipo(node_id) != "codigo":
+        docs.add(node_id)
+    out = []
+    for d in sorted(docs):
+        out += [r for r in relations(graph, resolver, cache, d) if node_id in (r.source, r.target)]
+    return out
 
 
 def run_neighbors(args) -> int:
     root, graph, t = _load_target(args)
-    _reject_folder(graph, t, "neighbors")
     cache = TwinCache(root)
+    rels = relations_of(graph, cache, t.node_id) if t.section is None else []
+    if args.incoming:
+        rels = [r for r in rels if r.target == t.node_id]
+    if args.outgoing:
+        rels = [r for r in rels if r.source == t.node_id]
+    if rels or graph.tipo(t.node_id) == "codigo":
+        print(f"relaciones ({len(rels)})")
+        for r in rels:
+            where = shown_id(graph, r.declared_in) + (f"#{r.heading}" if r.heading else "")
+            why = f": {r.why}" if r.why else ""
+            print(f"  {shown_id(graph, r.source)} -> {shown_id(graph, r.target)}{why} (en {where})")
     out, inc = neighbors_of(graph, cache, t.node_id, t.section)
-    if not args.incoming:
+    if not args.incoming and graph.tipo(t.node_id) != "codigo":
         print(f"salientes ({len(out)})")
         for nb in out:
             print(f"  -> {nb.node_id}{(' ' + _fmt_sections(nb.sections)) if _fmt_sections(nb.sections) else ''} [{', '.join(nb.relaciones)}]")
     if not args.outgoing:
-        print(f"entrantes ({len(inc)})")
+        print(f"{'mencionado en' if graph.tipo(t.node_id) == 'codigo' else 'entrantes'} ({len(inc)})")
         for nb in inc:
             where = f" (en: {', '.join(sorted(nb.sections))})" if nb.sections else ""
             print(f"  <- {nb.node_id}{where} [{', '.join(nb.relaciones)}]")
@@ -211,7 +242,6 @@ def subgraph(graph: Graph, start: str, depth: int, direction: str = "both") -> d
 
 def run_subgraph(args) -> int:
     root, graph, t = _load_target(args, allow_section=False)
-    _reject_folder(graph, t, "subgraph")
     if args.depth < 0:
         raise GraphError("--depth no puede ser negativo")
     seen = subgraph(graph, t.node_id, args.depth, args.direction)
@@ -300,12 +330,12 @@ def run_status(args) -> int:
 
     root = root_of(args)
     graph = graph_io.load(root)
-    rep = states.report(root, graph, check_symbols=True)
+    rep = states.report(root, graph, check_size=True)
+    print(f"índices: {len(rep.folders)} carpetas, {sum(1 for n in graph.nodes.values() if n['tipo'] == 'codigo')} archivos")
     print(f"ok: {len(rep.ok)}")
     print(f"desactualizado: {len(rep.desactualizados)}")
     print(f"faltante: {len(rep.faltantes)}")
     print(f"trivial: {len(rep.triviales)}")
-    print(f"desalineado: {len(rep.desalineados)}")
     print(f"pendiente por crear: {len(rep.pendientes)}")
     print(f"huérfano: {len(rep.huerfanos)}")
     msg = hooks.head_mismatch(root)
@@ -316,13 +346,13 @@ def run_status(args) -> int:
 
 
 def register(sub) -> None:
-    p = sub.add_parser("get", help="contenido de un gemelo o una sección")
+    p = sub.add_parser("get", help="contenido de un índice, un documento o una sección")
     p.add_argument("ruta", metavar="ruta[#sección]")
     p.add_argument("--expand", action="store_true", help="incluye inline el contenido de los vecinos (un salto)")
     p.add_argument("--depth", type=int, metavar="N", help="expande hasta N saltos por secciones, sin repetir lo ya leído (implica --expand)")
     p.set_defaults(func=run_get)
 
-    p = sub.add_parser("neighbors", help="nodos conectados (entrantes y salientes)")
+    p = sub.add_parser("neighbors", help="relaciones declaradas y nodos conectados (entrantes y salientes)")
     p.add_argument("ruta", metavar="ruta[#sección]")
     g = p.add_mutually_exclusive_group()
     g.add_argument("--in", dest="incoming", action="store_true", help="solo entrantes")
@@ -336,12 +366,12 @@ def register(sub) -> None:
     p.add_argument("--json", action="store_true", help="salida node-link (para visualización)")
     p.set_defaults(func=run_subgraph)
 
-    p = sub.add_parser("search", help="búsqueda de texto y por frontmatter en los gemelos")
+    p = sub.add_parser("search", help="búsqueda de texto y por frontmatter en índices y documentos")
     p.add_argument("query", nargs="?", default="")
     p.add_argument("--filter", action="append", default=[], metavar="campo=valor")
     p.add_argument("--regex", action="store_true")
     p.add_argument("--limit", type=int, default=100)
     p.set_defaults(func=run_search)
 
-    p = sub.add_parser("status", help="resumen de una línea por estado")
+    p = sub.add_parser("status", help="conteo de índices por estado")
     p.set_defaults(func=run_status)

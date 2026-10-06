@@ -1,8 +1,9 @@
-"""Render de cáscaras: gemelos de código, índices y documentos de Estado_Proyecto.
+"""Render de cáscaras: índices y documentos de Estado_Proyecto.
 
-El índice de una carpeta de código es su reporte: nace con `## Propósito` y
+El índice de una carpeta es su reporte: nace con `## Propósito` y
 `## Relaciones` vacías (las llena el agente) y con las listas estructurales
-(las mantiene `populate`). El maestro y el de Estado_Proyecto solo llevan listas.
+(las mantiene `populate`). El de Estado_Proyecto solo lleva listas.
+Los archivos de código no tienen documento: son nodos sin cáscara.
 
 Las plantillas del vault (Templater) son el diseño; aquí viven las versiones
 empaquetadas con nombre final y sin sintaxis de Templater.
@@ -34,11 +35,6 @@ def frontmatter(tipo: str, fecha: str) -> str:
     return f"---\ntipo: {tipo}\nfecha_elaboracion: {fecha}\nfecha_actualizacion: {fecha}\n---\n"
 
 
-def render_code_shell(fecha: str | None = None) -> str:
-    """Solo frontmatter: el gemelo nace `faltante` hasta que alguien escriba contenido real."""
-    return frontmatter("codigo", fecha or today())
-
-
 def render_estado(name: str, fecha: str | None = None) -> str:
     text = resources.files("grafo_ia").joinpath("templates", f"{name}.md").read_text(encoding="utf-8")
     return text.replace("{{fecha}}", fecha or today())
@@ -57,7 +53,7 @@ def _index_sections(folders: list[tuple[str, str]], files: list[tuple[str, str]]
 
 def render_index(folders: list[tuple[str, str]], files: list[tuple[str, str]], fecha: str | None = None,
                  report: bool = True) -> str:
-    """`report=False` para los índices que solo son estructura (maestro y Estado_Proyecto)."""
+    """`report=False` para el índice que solo es estructura (el de Estado_Proyecto)."""
     out = frontmatter("indice", fecha or today())
     if report:
         out += "".join(f"## {title}\n\n" for title in REPORT_SECTIONS)

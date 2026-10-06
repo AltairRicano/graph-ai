@@ -3,6 +3,7 @@
 Léela la primera vez que escribas el índice de una carpeta, o si dudas de qué va en él. El índice de
 `src/pagos` vive en `.graph/src/pagos/pagos.md`; si la carpeta ya está en el grafo, la cáscara
 (cabecera, `## Propósito` y `## Relaciones` vacías, y las listas de carpetas y archivos) ya existe.
+El índice de la raíz del proyecto (`.`) es `.graph/Index.md` y sigue las mismas reglas.
 
 ## Reglas
 
@@ -29,7 +30,8 @@ Léela la primera vez que escribas el índice de una carpeta, o si dudas de qué
 - **Nunca edites las listas `📁 Carpetas` / `📄 Archivos`**: las mantiene el CLI.
 - **No escribas el frontmatter ni la línea `**Elaboración:** | **Actualización:**`** de cada `##`: las
   pone `graph multiedit` (conserva la elaboración y mueve la actualización solo si el texto cambió).
-- Una carpeta que solo tiene archivos triviales (estilos, configuración) no pide `## Propósito`.
+- Una carpeta sin archivos propios (solo subcarpetas) o que solo tiene archivos triviales (estilos,
+  configuración) no pide `## Propósito`.
 - Largo: el que se lee de una pasada. Un índice demasiado largo se avisa: suele repetir lo que el
   código ya dice.
 - Se escribe con `graph multiedit`, que confirma el índice él mismo: `=== carpeta#Sección ===`
@@ -73,15 +75,17 @@ Cobra los pedidos y deja el asiento que después usa facturación. ...
 
 - [[src/pagos/cobro.go#calcular_total|calcular_total]] → [[src/pagos/descuentos.go|descuentos.go]]: ...
 
-## 📁 Carpetas
-- [[src/pagos/proveedores|proveedores]]
-
-## 📄 Archivos
-- [[src/pagos/cobro.go|cobro.go]]
-- [[src/pagos/descuentos.go|descuentos.go]]
-
 ## Redondeo de centavos
 **Elaboración:** AAAA-MM-DD | **Actualización:** AAAA-MM-DD
 
 El total se redondea una sola vez, ...
+
+## 📁 Carpetas
+- [[src/pagos/proveedores/proveedores.md|proveedores]]
+
+## 📄 Archivos
+- [[src/pagos/cobro.go|cobro.go]]
+- [[src/pagos/descuentos.go|descuentos.go]]
 ```
+
+Las listas van siempre al final: lo que agregas queda antes de ellas.

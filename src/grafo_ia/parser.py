@@ -1,4 +1,4 @@
-"""Parser de markdown de gemelos: frontmatter, headings ("gatos"), secciones y enlaces.
+"""Parser de markdown de índices y documentos: frontmatter, headings ("gatos"), secciones y enlaces.
 
 Reglas:
 - Nada dentro de un bloque de código (``` o ~~~) cuenta: ni headings ni enlaces.

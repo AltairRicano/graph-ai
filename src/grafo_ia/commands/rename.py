@@ -69,7 +69,7 @@ def run(args) -> int:
     node_id = t.node_id
     text = cache.text(node_id)
     if text is None:
-        raise GraphError(f"no existe el gemelo de {t.rel}")
+        raise GraphError(f"{t.rel or '.'} no tiene documento con secciones (un archivo de código no las tiene)")
     doc = cache.doc(node_id)
 
     old_matches = parser.find_headings(doc, t.section)
@@ -78,7 +78,7 @@ def run(args) -> int:
         if old_matches:
             raise GraphError(f"el heading '{t.section}' sigue existiendo; quita --links-only")
         if len(new_matches) != 1:
-            raise GraphError(f"el heading nuevo '{new_full}' no existe una sola vez en el gemelo")
+            raise GraphError(f"el heading nuevo '{new_full}' no existe una sola vez en el documento")
         old_full = t.section
     else:
         if not old_matches:
@@ -90,7 +90,7 @@ def run(args) -> int:
             raise GraphError("el nombre nuevo es igual al viejo")
         new_key = parser.heading_ident(new_full) or new_full
         if new_matches or any(parser.heading_matches(x.text, new_key) for x in doc.headings if x is not h):
-            raise GraphError(f"ya existe una sección '{new_full}' en el gemelo")
+            raise GraphError(f"ya existe una sección '{new_full}' en el documento")
         old_full = h.text
         line = doc.lines[h.line]
         m = _HEADING_PREFIX.match(line)
@@ -127,7 +127,7 @@ def run(args) -> int:
         write_text_atomic(twin_path(root, s), out)
     if not args.links_only:
         print(f"{node_id}: '{old_full}' -> '{new_full}'")
-    print(f"gemelos tocados: {len(touched)}")
+    print(f"documentos tocados: {len(touched)}")
     for s, n in sorted(touched.items()):
         print(f"  ~ {s} ({plural(n, 'enlace')})")
     return 0

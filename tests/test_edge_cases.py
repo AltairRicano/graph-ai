@@ -9,16 +9,18 @@ import pytest
 
 from grafo_ia.paths import to_rel, twin_path
 
-from conftest import assert_sano, load, read_twin, write, write_twin
+from conftest import assert_sano, load, read_twin, write, write_index
 
 
 def test_rutas_con_espacios_y_acentos(project, run):
     write(project, "módulo de pagos/cálculo final.py", "x = 1\n")
     assert run(project, "init", "--yes", "--no-git")[0] == 0
     g = load(project)
-    assert "módulo de pagos/cálculo final.py.md" in g.nodes
-    write_twin(project, "módulo de pagos/cálculo final.py.md", "calcula\n")
-    assert run(project, "update", "módulo de pagos/cálculo final.py")[0] == 0
+    assert "módulo de pagos/cálculo final.py" in g.nodes
+    write_index(project, "módulo de pagos", "calcula con [[módulo de pagos/cálculo final.py|cálculo]]\n")
+    assert run(project, "update", "módulo de pagos")[0] == 0
+    assert load(project).relations("módulo de pagos/módulo de pagos.md", "módulo de pagos/cálculo final.py") == ["conoce"]
+    assert "cálculo final.py" in run(project, "neighbors", "módulo de pagos")[1]
     assert_sano(project)
 
 
@@ -43,10 +45,21 @@ def test_carpeta_con_archivo_homonimo(project, run):
     assert run(project, "doctor")[0] == 0
 
 
-def test_archivo_sin_extension_que_choca_con_indice(project, run):
-    write(project, "src/src", "choca\n")
+def test_archivo_homonimo_de_su_carpeta_no_choca_con_el_indice(project, run):
+    write(project, "src/src", "sin extensión\n")
     code, out = run(project, "init", "--yes", "--no-git")
-    assert code == 0 and "choca" in out
+    assert code == 0 and "choca" not in out
+    g = load(project)
+    assert g.tipo("src/src.md") == "indice" and g.tipo("src/src") == "codigo"
+    assert_sano(project)
+
+
+def test_md_que_choca_con_el_indice_se_omite(project, run):
+    write(project, "src/src.md", "# documento real con el nombre del índice\n")
+    assert run(project, "init", "--yes", "--no-git")[0] == 0
+    assert run(project, "ignore", "--remove", "*.md")[0] == 0  # ahora los .md entran al grafo
+    code, out = run(project, "add")
+    assert code == 0 and "se omitió src/src.md" in out and "choca" in out
     assert load(project).tipo("src/src.md") == "indice"
     assert_sano(project)
 
@@ -63,21 +76,22 @@ def test_remove_y_mv_de_carpeta_arrastran_indice(initialized, run):
 def test_archivo_vacio(project, run):
     write(project, "vacio.py", "")
     assert run(project, "init", "--yes", "--no-git")[0] == 0
-    write_twin(project, "vacio.py.md", "vacío a propósito\n")
-    assert run(project, "update", "vacio.py")[0] == 0
+    write_index(project, "", "", purpose="Tiene un archivo vacío a propósito.")
+    assert run(project, "update", ".")[0] == 0
+    assert load(project).nodes["vacio.py"]["last_synced_hash"]
 
 
 @pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="permisos POSIX")
-def test_gemelo_sin_permisos_de_escritura(initialized, run):
-    write_twin(initialized, "src/main.go.md", "## helper\nx\n")
-    write_twin(initialized, "src/features/login.go.md", "[[src/main.go.md#helper|h]]\n")
-    run(initialized, "update", "src/features/login.go")
-    d = twin_path(initialized, "src/features/login.go.md").parent
+def test_indice_sin_permisos_de_escritura(initialized, run):
+    write_index(initialized, "src", "## helper\nx\n")
+    write_index(initialized, "src/features", "[[src#helper|h]]\n")
+    run(initialized, "update", "src/features")
+    d = twin_path(initialized, "src/features/features.md").parent
     os.chmod(d, 0o555)
     try:
-        code, out = run(initialized, "rename", "src/main.go#helper", "ayuda")
+        code, out = run(initialized, "rename", "src#helper", "ayuda")
         assert code == 2 and "permisos" in out
-        assert "## helper" in read_twin(initialized, "src/main.go.md")  # nada a medias
+        assert "## helper" in read_twin(initialized, "src/src.md")  # nada a medias
     finally:
         os.chmod(d, 0o755)
 
@@ -91,14 +105,16 @@ def test_desde_subcarpeta_encuentra_graph(initialized, run):
     code, out = run(initialized / "src/features", "status")
     assert code == 0 and "faltante" in out
     code, out = run(initialized / "src/features", "get", "login.go")
-    assert code == 0 and "src/features/login.go.md" in out
+    assert code == 0 and "src/features/login.go es un archivo de código" in out
+    code, out = run(initialized / "src/features", "get", ".")
+    assert code == 0 and out.startswith("==> src/features/features.md <==")
 
 
 def test_estado_proyecto_reservado(project, run):
     write(project, "Estado_Proyecto/x.py")
     code, out = run(project, "init", "--yes", "--no-git")
     assert code == 0 and "reservado" in out
-    assert "Estado_Proyecto/x.py.md" not in load(project).nodes
+    assert "Estado_Proyecto/x.py" not in load(project).nodes
     assert_sano(project)
 
 
@@ -106,6 +122,6 @@ def test_enlaces_ambiguos_se_reportan(initialized, run):
     write(initialized, "a/util.py")
     write(initialized, "b/util.py")
     run(initialized, "add")
-    write_twin(initialized, "Makefile.md", "[[util.py.md|util]]\n")
+    write_index(initialized, "", "[[util.py|util]]\n")
     out = run(initialized, "incomplete")[1]
     assert "ambiguo" in out

@@ -15,7 +15,6 @@ from grafo_ia.graph_io import Graph
 from grafo_ia.paths import (
     ESTADO_DOCS,
     ESTADO_INDEX_ID,
-    MASTER_ID,
     is_estado,
     is_under,
     node_name,
@@ -73,16 +72,15 @@ def populate(root: Path, graph: Graph, scope: str = "") -> PopulateResult:
                     write_text_atomic(path, new)
                     res.indexes_updated.append(node_id)
             else:
-                report = node_id not in (MASTER_ID, ESTADO_INDEX_ID)
+                report = node_id != ESTADO_INDEX_ID
                 write_text_atomic(path, templates.render_index(folders, files, fecha, report=report))
                 res.created.append(node_id)
             continue
+        if tipo == "codigo":
+            continue  # el nodo es el propio archivo de código: no tiene documento
         if path.exists() or not (_in_scope(node_id, tipo, scope) or is_estado(node_id)):
             continue
-        if tipo == "codigo":
-            write_text_atomic(path, templates.render_code_shell(fecha))
-        else:
-            write_text_atomic(path, templates.render_estado(ESTADO_TEMPLATE[tipo], fecha))
+        write_text_atomic(path, templates.render_estado(ESTADO_TEMPLATE[tipo], fecha))
         res.created.append(node_id)
     return res
 
@@ -93,7 +91,7 @@ def report(res: PopulateResult) -> None:
 
 
 def register(sub) -> None:
-    p = sub.add_parser("populate", help="materializa carpetas, índices y gemelos vacíos a partir del JSON")
+    p = sub.add_parser("populate", help="materializa los índices y documentos a partir del JSON")
     p.add_argument("ruta", nargs="?", help="acota a esta carpeta (por defecto, todo)")
     p.set_defaults(func=run)
 

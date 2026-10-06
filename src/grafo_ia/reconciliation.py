@@ -2,15 +2,15 @@
 
 Lo reutilizan `init`, `add`, `post-merge` y el Watcher. Corrido contra un JSON
 vacío es la inicialización; corrido de nuevo no destruye nada:
-- Nodo de código cuyo archivo desapareció: se queda si su gemelo tiene
-  contenido (es huérfano, lo limpia `prune`); se va si estaba vacío.
-- Índice cuya carpeta desapareció: se va si no le quedan descendientes.
+- Nodo de código cuyo archivo desapareció: se va (no tiene documento que cuidar).
+- Índice cuya carpeta desapareció: se queda si alguien le escribió contenido
+  (es huérfano, lo limpia `prune`); se va si solo tenía las listas.
 - Movimiento que se escapó: un nodo desaparecido cuyo `last_synced_hash`
   coincide con un solo archivo nuevo (1 a 1) se mueve con `mv`. Si no es
   1 a 1, no se adivina.
-- Nodos nuevos nacen sin hash (`faltante`), y los enlaces que ya los
-  esperaban (pendientes) se vuelven aristas.
-No escribe gemelos nuevos: eso es trabajo de `populate`.
+- Nodos nuevos nacen sin hash, y los enlaces que ya los esperaban
+  (pendientes) se vuelven aristas.
+No escribe índices nuevos: eso es trabajo de `populate`.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ from grafo_ia.paths import (
     twin_path,
 )
 from grafo_ia.rewrite import prune_empty_dirs
-from grafo_ia.states import twin_has_content
+from grafo_ia.states import index_has_content
 
 
 @dataclass
@@ -82,15 +82,15 @@ def expected_nodes(scan: Scan, scope: str, changes: Changes) -> dict[str, str]:
             continue
         cid = code_id(f)
         if cid in reserved or cid in expected:
-            changes.skipped.append((f, f"su gemelo {cid} choca con un índice"))
+            changes.skipped.append((f, f"su ruta choca con el índice {cid}"))
             continue
         expected[cid] = "codigo"
-    # un archivo sin extensión `a/a` choca con el índice de la carpeta `a`
+    # un archivo `a/a.md` (si alguien dejó de excluir los .md) choca con el índice de la carpeta `a`
     for f in scan.files:
         cid = code_id(f)
         if expected.get(cid) == "codigo" and cid == folder_id(parent_rel(f)):
             del expected[cid]
-            changes.skipped.append((f, f"su gemelo {cid} choca con el índice de su carpeta"))
+            changes.skipped.append((f, "su ruta choca con el índice de su carpeta"))
     return expected
 
 
@@ -119,7 +119,7 @@ def _detect_moves(root: Path, graph: Graph, vanished: set[str], new: dict[str, s
         if tipo != "codigo":
             continue
         try:
-            h = hash_file(root / nid[:-3])
+            h = hash_file(root / nid)
         except OSError:
             continue
         if h in by_hash_old:
@@ -134,15 +134,11 @@ def _detect_moves(root: Path, graph: Graph, vanished: set[str], new: dict[str, s
         if graph.nodes[nid]["tipo"] != "indice":
             continue
         d = folder_rel_of_index(nid)
-        # si algo con contenido se queda atrás (huérfano), la carpeta no se movió completa
-        left = [n for n in vanished if n not in moves and graph.nodes[n]["tipo"] == "codigo" and is_under(n[:-3], d)]
-        if any(twin_has_content(cache, n) for n in left):
-            continue
         dests = set()
         for old, newid in list(moves.items()):
             if graph.nodes[old]["tipo"] != "codigo":
                 continue
-            orel, nrel = old[:-3], newid[:-3]
+            orel, nrel = old, newid
             if is_under(orel, d) and orel != d:
                 suffix = orel[len(d):]
                 if not nrel.endswith(suffix):
@@ -187,27 +183,22 @@ def reconcile(root: Path, graph: Graph, scope: str = "", exclusion: Exclusion | 
             for dst in moves.values():
                 new.pop(dst, None)
 
-    # 2. desaparecidos: código vacío se va, con contenido queda huérfano
-    to_remove = set()
-    for nid in sorted(vanished):
-        if graph.nodes[nid]["tipo"] == "codigo":
-            if twin_has_content(cache, nid):
-                changes.orphans.append(nid)
-            else:
-                to_remove.add(nid)
-    # índices: se van si no les queda ningún descendiente vivo
-    survivors = [n[:-3] for n, node in graph.nodes.items() if node["tipo"] == "codigo" and n not in to_remove]
-    for nid in sorted(vanished):
-        if graph.nodes[nid]["tipo"] != "indice":
-            continue
+    # 2. desaparecidos: el código se va; un índice con contenido escrito queda huérfano
+    to_remove = {nid for nid in vanished if graph.nodes[nid]["tipo"] == "codigo"}
+    gone = [nid for nid in vanished if graph.nodes[nid]["tipo"] == "indice"]
+    kept = [folder_rel_of_index(nid) for nid in gone if index_has_content(cache, nid)]
+    for nid in sorted(gone):
         d = folder_rel_of_index(nid)
-        if not any(is_under(r, d) for r in survivors):
+        if d in kept:
+            changes.orphans.append(nid)
+        elif not any(is_under(k, d) for k in kept):  # el ancestro de un huérfano se queda para no dejarlo sin padre
             to_remove.add(nid)
     for nid in sorted(to_remove, key=lambda x: -x.count("/")):
-        p = twin_path(root, nid)
-        if p.is_file():
-            p.unlink()
-        prune_empty_dirs(p.parent, graph_dir(root))
+        if graph.nodes[nid]["tipo"] != "codigo":
+            p = twin_path(root, nid)
+            if p.is_file():
+                p.unlink()
+            prune_empty_dirs(p.parent, graph_dir(root))
         graph.remove_node(nid)
         cache.forget(nid)
         changes.removed.append(nid)

@@ -1,11 +1,11 @@
-"""Archivos triviales: están en el grafo, pero su gemelo no necesita contenido.
+"""Archivos triviales: están en el grafo, pero no le piden contenido al índice de su carpeta.
 
 `.graph/trivial` lleva patrones con la misma sintaxis que `.graph/exclude`.
-Un archivo que cae en uno y cuyo gemelo solo tiene frontmatter cuenta como
-`trivial` en vez de `faltante`: nadie tiene que llenarlo para dejar el grafo
-en verde. Si alguien le escribe contenido (ahí vive una decisión que vale la
-pena), vuelve a las reglas normales del hash.
-Sin el archivo no hay triviales: los grafos anteriores no cambian.
+Una carpeta cuyos archivos propios caen todos en uno (o que no tiene archivos
+propios) cuenta como `trivial` en vez de `faltante` mientras su índice no tenga
+propósito: nadie tiene que llenarlo para dejar el grafo en verde. Tampoco
+desactualizan el índice al entrar o salir.
+Sin el archivo no hay triviales.
 """
 
 from __future__ import annotations
@@ -18,8 +18,8 @@ from grafo_ia.exclusion import load_user_rules, match_rule
 TRIVIAL_FILE = "trivial"
 
 TRIVIAL_HEADER = (
-    "# Archivos cuyo gemelo no necesita contenido, un patrón por línea (misma sintaxis que `exclude`).\n"
-    "# Siguen en el grafo y se pueden enlazar; solo dejan de contar como faltantes mientras estén vacíos.\n"
+    "# Archivos que no le piden contenido al índice de su carpeta, un patrón por línea (misma sintaxis que `exclude`).\n"
+    "# Siguen en el grafo y se pueden enlazar; una carpeta que solo tiene de estos no cuenta como faltante.\n"
     "# Se editan a mano o con `graph trivial`.\n"
 )
 

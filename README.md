@@ -1,19 +1,20 @@
 # grafo_ia — Grafo para IA
 
-Grafo bidireccional de gemelos markdown para dar contexto a agentes de IA sobre un proyecto de código,
-sin ensuciar el código con comentarios extensos. Inspirado en el grafo de Obsidian, pensado para el modo headless.
+Contexto de un proyecto de código para agentes de IA, sin duplicar el código en documentación. Los nodos del
+grafo son los propios archivos de código; lo que el código no dice vive en un índice markdown por carpeta y
+en el estado del proyecto. Pensado para el modo headless.
 
-- Cada archivo tiene un gemelo `.md` en `.graph/` y cada carpeta un índice.
-- Los `[[enlaces]]` entre gemelos forman un grafo dirigido en `.graph/index.json` (formato node-link de networkx).
-- La sincronía se detecta por hash del contenido (no por fecha), con cinco estados: ok, desactualizado, faltante,
-  trivial y huérfano.
-- `graph multiedit` escribe el cuerpo de muchos gemelos en una sola llamada a partir de un lote de texto plano,
-  pone las fechas y confirma la sincronía de cada uno.
-- Los archivos triviales (estilos, configuración) siguen en el grafo pero no piden contenido: `.graph/trivial`.
+- Los archivos de código no tienen un documento gemelo: qué hace cada función y por qué va en sus comentarios.
+- Cada carpeta tiene un índice en `.graph/` con su propósito, las relaciones entre sus archivos y con otras
+  carpetas, y las reglas que cruzan archivos. Un documento por carpeta, tenga 3 archivos o 30.
+- `.graph/Estado_Proyecto/` guarda el estado, el plan, las decisiones, las tecnologías y la arquitectura.
+- Los `[[enlaces]]` de índices y documentos apuntan a archivos de código reales, a funciones o a otras
+  carpetas, y forman un grafo dirigido en `.graph/index.json` (formato node-link de networkx).
+- El estado es de la carpeta: un índice queda desactualizado cuando a su carpeta le entran o salen archivos
+  o cuando uno de sus enlaces deja de resolver, no cada vez que alguien edita un archivo.
+- `graph multiedit` escribe secciones de muchos índices y documentos en una sola llamada a partir de un lote
+  de texto plano, pone las fechas y confirma cada uno.
 - `.graph` es un repo git anidado sin remoto, alineado con el repo de código mediante hooks.
-- Al confirmar un gemelo se guarda una instantánea del código: `graph diff` muestra qué cambió desde
-  entonces y qué funciones tocó, y en Python y Go se avisa cuando las secciones del gemelo ya no cuadran
-  con las funciones del código.
 
 El manual de uso (catálogo de comandos y formatos) está en [SKILL.md](SKILL.md).
 
@@ -58,45 +59,49 @@ Para desarrollo: `uv venv && uv pip install -e '.[test]'`.
 
 ```bash
 cd mi-proyecto
-graph init            # vista previa de exclusiones y confirmación
-graph status
-graph get src/main.go --expand
-graph multiedit <<'LOTE'          # escribe varios gemelos y los confirma
-=== src/main.go ===
-Punto de entrada del servicio.
-=== src/pagos/cobro.go#calcular_total ===
-**Qué hace:** ... **Por qué existe:** ...
+graph init                        # vista previa de exclusiones y confirmación
+graph status                      # índices por estado
+graph get src/pagos --expand      # el índice de una carpeta y los de sus vecinos
+graph neighbors src/pagos/cobro.go  # relaciones declaradas de un archivo
+graph multiedit <<'LOTE'          # escribe varios índices y los confirma
+=== src/pagos#Propósito ===
+Cobra los pedidos y deja el asiento que usa facturación.
+=== src/pagos#Relaciones ===
+- [[src/pagos/cobro.go|cobro.go]] → [[src/db|db]]: cada cobro corre en una sola transacción.
+=== Estado_Proyecto/Estado.md#Hecho ===
+- Cobro con descuentos.
 LOTE
 # ... más tarde, tras cambiar el código ...
-graph incomplete                  # desactualizados primero, luego faltantes
-graph diff src/main.go --symbols  # qué funciones cambiaron desde la última confirmación
-graph update src/a.go src/b.go    # confirmar gemelos editados a mano
+graph incomplete                  # índices por escribir, cada uno con su motivo
+graph diff src/pagos              # archivos que entraron, salieron o cambiaron desde la última confirmación
+graph update src/pagos            # confirmar un índice editado a mano
 graph ignore '*.csv'              # sacar del grafo lo que no aporta contexto
-graph trivial '*.sql'             # dejarlo en el grafo, pero sin pedirle contenido
+graph trivial '*.sql'             # dejarlo en el grafo, pero sin pedirle contenido a su carpeta
 ```
 
 ### Lotes de `graph multiedit`
 
-Cada entrada empieza con una línea separadora y sigue con el contenido tal cual, sin escapar nada.
-Las rutas van desde la raíz del proyecto.
+Cada entrada empieza con una línea separadora y sigue con el contenido tal cual, sin escapar nada. El blanco es
+una carpeta (su índice) o un documento de `Estado_Proyecto/`, con la ruta desde la raíz del proyecto.
 
 | Separador | Efecto |
 | :--- | :--- |
-| `=== ruta ===` | Agrega al final del cuerpo (en un gemelo vacío, lo escribe completo). |
-| `=== ruta [override] ===` | Reemplaza el cuerpo completo. |
-| `=== ruta#sección ===` | Reemplaza esa sección; en un gemelo de código la crea bajo `## Funciones` si no existe. |
+| `=== ruta#sección ===` | Reemplaza esa sección; en un índice la crea si no existe. |
 | `=== ruta#sección [append] ===` | Agrega al final de esa sección. |
+| `=== ruta ===` | Agrega al final de lo escrito (en un índice, antes de sus listas). |
+| `=== ruta [override] ===` | Reemplaza todo lo escrito; en un índice conserva las listas de carpetas y archivos. |
 
-El frontmatter y las líneas `**Elaboración:** | **Actualización:**` los mantiene el comando. El lote se valida
-entero antes de escribir (un error no deja nada a medias), agrega al grafo los archivos nuevos que mencione y
-al final reporta enlaces rotos, funciones sin sección y gemelos más largos que su código. Agregar a un gemelo
-desactualizado se rechaza: hay que reescribir la sección que cambió o usar `[override]`. Con `-f lote.txt` lee
-el lote de un archivo y lo borra al aplicarlo (`--keep` lo conserva).
+El frontmatter, las listas de carpetas y archivos y las líneas `**Elaboración:** | **Actualización:**` los
+mantiene el comando. Antes de leer el lote reconcilia el proyecto, así que las carpetas y archivos nuevos entran
+solos al grafo. El lote se valida entero antes de escribir (un error no deja nada a medias) y al final reporta
+enlaces por corregir, índices que siguen incompletos e índices más largos que el código de su carpeta. Un archivo
+de código no es un blanco válido. Con `-f lote.txt` lee el lote de un archivo y lo borra al aplicarlo (`--keep`
+lo conserva).
 
 ### Cierre de turno en Claude Code
 
-`graph hook claude-stop` es un hook `Stop`: si el código con cambios sin commitear tiene gemelos faltantes o
-desactualizados, bloquea el cierre del turno una vez y le dice al agente cuáles son. Es opcional y se declara
+`graph hook claude-stop` es un hook `Stop`: si una carpeta con código sin commitear tiene su índice faltante o
+desactualizado, bloquea el cierre del turno una vez y le dice al agente cuáles son. Es opcional y se declara
 en `~/.claude/settings.json`:
 
 ```json
@@ -115,8 +120,8 @@ graph-ai/
 ├── plantillas/          formatos de escritura: índice de carpeta, cada documento de
 │                        Estado_Proyecto y reportes de agentes (un archivo por formato)
 ├── scripts/             instalador multiplataforma (install.py)
-├── src/grafo_ia/        paquete Python del CLI: parser, grafo, exclusiones, estados,
-│   │                    instantáneas y cruce de funciones con secciones
+├── src/grafo_ia/        paquete Python del CLI: parser, grafo, exclusiones, reconciliación
+│   │                    y estados por carpeta
 │   ├── commands/        un módulo por subcomando (init, multiedit, update, diff, ignore, ...)
 │   └── templates/       cáscaras de Estado_Proyecto que crea `graph init`
 ├── tests/               pruebas con pytest

@@ -11,9 +11,9 @@ import pytest
 from grafo_ia import graph_io
 from grafo_ia.cli import main
 from grafo_ia.commands.doctor import diagnose
-from grafo_ia.paths import twin_path
+from grafo_ia.paths import folder_id, twin_path
 
-FM = "---\ntipo: codigo\nfecha_elaboracion: 2026-01-01\nfecha_actualizacion: 2026-01-01\n---\n"
+FM = "---\ntipo: indice\nfecha_elaboracion: 2026-01-01\nfecha_actualizacion: 2026-01-01\n---\n"
 
 
 def write(root: Path, rel: str, content: str = "x\n") -> Path:
@@ -32,6 +32,17 @@ def write_twin(root: Path, node_id: str, body: str, fm: str = FM) -> Path:
 
 def read_twin(root: Path, node_id: str) -> str:
     return twin_path(root, node_id).read_text(encoding="utf-8")
+
+
+def write_index(root: Path, rel: str, body: str, purpose: str | None = "Para qué sirve.") -> Path:
+    """Escribe a mano el reporte del índice de `rel` (sin confirmarlo), conservando sus listas."""
+    p = twin_path(root, folder_id(rel))
+    text = p.read_text(encoding="utf-8")
+    head, _, tail = text.partition("## Propósito\n")
+    lists = tail[tail.index("## 📁 Carpetas"):]
+    report = (f"## Propósito\n{purpose}\n\n" if purpose else "## Propósito\n\n") + body.rstrip("\n") + "\n\n"
+    p.write_text(head + report + lists, encoding="utf-8")
+    return p
 
 
 def assert_sano(root: Path) -> None:

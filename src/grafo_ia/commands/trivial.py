@@ -18,7 +18,7 @@ from grafo_ia.paths import graph_dir
 
 
 def register(sub) -> None:
-    p = sub.add_parser("trivial", help="patrones de archivos cuyo gemelo no necesita contenido (.graph/trivial)")
+    p = sub.add_parser("trivial", help="patrones de archivos que no le piden contenido al índice de su carpeta (.graph/trivial)")
     p.add_argument("patrones", nargs="*", metavar="patrón",
                    help="nombre suelto = en cualquier nivel (admite comodines); con '/' = desde la raíz")
     p.add_argument("--remove", action="store_true", help="quita los patrones en vez de agregarlos")
