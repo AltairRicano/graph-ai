@@ -89,6 +89,21 @@ def test_init_excluye_y_estructura(initialized):
     assert_sano(initialized)
 
 
+def test_indice_de_carpeta_nace_como_reporte(initialized, run):
+    src = read_twin(initialized, "src/src.md")
+    assert src.index("## Propósito") < src.index("## Relaciones") < src.index("## 📁 Carpetas") < src.index("## 📄 Archivos")
+    # el maestro y el de Estado_Proyecto son solo estructura
+    for only_lists in ("Index.md", "Estado_Proyecto/Estado_Proyecto.md"):
+        assert "## Propósito" not in read_twin(initialized, only_lists)
+    # reconciliar no toca lo que el agente escribió en el reporte
+    twin_path(initialized, "src/src.md").write_text(src.replace("## Propósito\n", "## Propósito\nCobra los pedidos.\n"), encoding="utf-8")
+    write(initialized, "src/nuevo.go", "package main\n")
+    run(initialized, "add")
+    after = read_twin(initialized, "src/src.md")
+    assert "Cobra los pedidos.\n" in after and "src/nuevo.go.md" in after
+    assert_sano(initialized)
+
+
 def test_init_sin_terminal_pide_yes(project, run):
     code, out = run(project, "init")
     assert code == 2 and "--yes" in out

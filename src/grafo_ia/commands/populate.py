@@ -14,6 +14,8 @@ from grafo_ia.commands._common import cwd_of, plural, root_of
 from grafo_ia.graph_io import Graph
 from grafo_ia.paths import (
     ESTADO_DOCS,
+    ESTADO_INDEX_ID,
+    MASTER_ID,
     is_estado,
     is_under,
     node_name,
@@ -71,7 +73,8 @@ def populate(root: Path, graph: Graph, scope: str = "") -> PopulateResult:
                     write_text_atomic(path, new)
                     res.indexes_updated.append(node_id)
             else:
-                write_text_atomic(path, templates.render_index(folders, files, fecha))
+                report = node_id not in (MASTER_ID, ESTADO_INDEX_ID)
+                write_text_atomic(path, templates.render_index(folders, files, fecha, report=report))
                 res.created.append(node_id)
             continue
         if path.exists() or not (_in_scope(node_id, tipo, scope) or is_estado(node_id)):

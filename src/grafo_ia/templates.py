@@ -1,5 +1,9 @@
 """Render de cáscaras: gemelos de código, índices y documentos de Estado_Proyecto.
 
+El índice de una carpeta de código es su reporte: nace con `## Propósito` y
+`## Relaciones` vacías (las llena el agente) y con las listas estructurales
+(las mantiene `populate`). El maestro y el de Estado_Proyecto solo llevan listas.
+
 Las plantillas del vault (Templater) son el diseño; aquí viven las versiones
 empaquetadas con nombre final y sin sintaxis de Templater.
 """
@@ -15,6 +19,9 @@ from grafo_ia import parser
 INDEX_FOLDERS = "📁 Carpetas"
 INDEX_FILES = "📄 Archivos"
 STRUCTURAL_SECTIONS = (INDEX_FOLDERS, INDEX_FILES)
+INDEX_PURPOSE = "Propósito"
+INDEX_RELATIONS = "Relaciones"
+REPORT_SECTIONS = (INDEX_PURPOSE, INDEX_RELATIONS)
 
 _FECHA_ACT = re.compile(r"^(fecha_actualizacion:[ \t]*)[^\r\n]*(\r?\n)?$")
 
@@ -48,8 +55,12 @@ def _index_sections(folders: list[tuple[str, str]], files: list[tuple[str, str]]
     }
 
 
-def render_index(folders: list[tuple[str, str]], files: list[tuple[str, str]], fecha: str | None = None) -> str:
+def render_index(folders: list[tuple[str, str]], files: list[tuple[str, str]], fecha: str | None = None,
+                 report: bool = True) -> str:
+    """`report=False` para los índices que solo son estructura (maestro y Estado_Proyecto)."""
     out = frontmatter("indice", fecha or today())
+    if report:
+        out += "".join(f"## {title}\n\n" for title in REPORT_SECTIONS)
     sections = _index_sections(folders, files)
     for i, (title, items) in enumerate(sections.items()):
         out += f"## {title}\n"
