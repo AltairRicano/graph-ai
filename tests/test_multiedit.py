@@ -163,8 +163,9 @@ def test_reporta_enlaces_rotos_y_lo_que_sigue_incompleto(initialized, batch):
     assert "[[src/nada.go|nada]] (no existe el destino)" in out
     assert "'ya_no_esta' ya no aparece en src/main.go" in out and "arrancar]]" not in out.split("corregir")[1]
     assert "(sin texto a mostrar)" in out
-    assert "índices que siguen incompletos (2)" in out
-    assert "src: 2 enlaces que no resuelven" in out and "src/features: sin `## Propósito`" in out
+    # un enlace a algo que nunca existió se avisa, pero no desactualiza el índice
+    assert "índices que siguen incompletos (1)" in out and "src/features: sin `## Propósito`" in out
+    assert "enlaces que" not in out.split("incompletos")[1]
 
 
 def test_separador_dentro_de_bloque_de_codigo_no_corta(initialized, batch):
@@ -306,3 +307,26 @@ def test_carpeta_borrada_queda_huerfana_si_tenia_contenido(initialized, run, bat
     assert run(initialized, "prune")[0] == 0
     assert "src/features/pagos/pagos.md" not in load(initialized).nodes
     assert_sano(initialized)
+
+
+def test_enlace_que_deja_de_resolver_desactualiza_y_el_pendiente_no(initialized, run, batch):
+    write(initialized, "src/main.go", "package main\n\nfunc main() {}\n\nfunc arrancar() {}\n")
+    code, out = batch(initialized, (
+        "=== src#Propósito ===\nArranca con [[src/main.go#arrancar|arrancar]] y usa [[src/features/login.go|login]]. "
+        "El frontend irá en [[web|web]].\n"
+    ))
+    assert code == 0, out
+    assert "[[web|web]] (no existe el destino)" in out  # se avisa al escribir...
+    assert "siguen incompletos" not in out  # ...pero el índice queda al día
+    assert _status(run, initialized)["desactualizado"] == "0"
+    assert "pendientes por crear (1)" in run(initialized, "incomplete")[1]
+    write(initialized, "src/main.go", "package main\n\nfunc main() {}\n")  # la función enlazada desaparece
+    assert "src: 1 enlace que dejó de resolver" in run(initialized, "incomplete")[1]
+    (initialized / "src/features/login.go").unlink()  # y un archivo enlazado de otra carpeta también
+    assert "src: 2 enlaces que dejaron de resolver" in run(initialized, "incomplete")[1]
+
+
+def test_init_dice_que_indices_faltan_por_escribir(project, run):
+    code, out = run(project, "init", "--yes", "--no-git")
+    assert code == 0, out
+    assert "índices por escribir (4): ., src, src/features, src/features/pagos" in out

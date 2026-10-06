@@ -1,6 +1,6 @@
 ---
 name: grafo-ia
-description: Contexto de un proyecto de código guardado en un grafo (.graph/) que se consulta y mantiene con el CLI `graph`. Los nodos son los propios archivos de código (no hay un markdown por archivo); lo que el código no dice vive en un índice por carpeta (para qué sirve el módulo, cómo se relacionan sus archivos, reglas que cruzan archivos) y en Estado_Proyecto/. Al iniciar sesión en un workspace con código basta `graph get Estado_Proyecto/Estado.md` (si responde que no hay .graph, pregunta al usuario si quiere `graph init`) y antes de tocar código `graph get <carpeta>`: para eso no hace falta cargar esta skill. Cárgala (1) justo antes de escribir o actualizar índices por primera vez en la sesión, que suele ser al terminar el código de la primera iteración y antes de responder al usuario; (2) al retomar tras un /compact si ya se escribió código; (3) al crear el grafo de un proyecto o sacar archivos de él. Si su contenido ya está en tu contexto, no la releas.
+description: Contexto de un proyecto de código guardado en un grafo (.graph/) que se consulta y mantiene con el CLI `graph`. Los nodos son los propios archivos de código (no hay un markdown por archivo); lo que el código no dice vive en un índice por carpeta (para qué sirve el módulo, cómo se relacionan sus archivos, reglas que cruzan archivos) y en Estado_Proyecto/. Cárgala solo en tres casos: (1) al iniciar sesión si el proyecto ya tiene .graph, junto con `graph get Estado_Proyecto/Estado.md`; (2) al terminar una iteración completa, justo antes de escribir o actualizar índices y antes de responder, salvo que ya la hayas leído en la sesión; (3) cuando el usuario lo pide. En un proyecto sin .graph no la cargues al empezar: haz el trabajo y cárgala al cerrar esa primera iteración. Si su contenido sigue en tu contexto, no la releas.
 ---
 
 # Grafo para IA (`graph`)
@@ -42,10 +42,9 @@ desde ahí (`graph.cmd install` en Windows). Detalles en el README.
 2. Si no lo está, `graph get Estado_Proyecto/Estado.md`: además de leer el estado, confirma que existe
    el grafo. Después, `graph get Estado_Proyecto/Tecnologias.md`. **Nada más**: el resto se lee bajo
    demanda, cuando la tarea lo pida.
-3. Si responde `no hay .graph`, **pregunta al usuario** si quiere crearlo. Si acepta:
-   `graph init --dry-run` (vista previa de lo que entra y lo que se excluye) y luego `graph init --yes`.
-   `init` deja todo armado: un índice por carpeta con sus listas y sus secciones vacías, y los cinco
-   documentos de `Estado_Proyecto/` con sus secciones listas para llenar.
+3. Si responde `no hay .graph`, no hay nada que leer: haz el trabajo que te pidieron. El grafo se crea
+   al cerrar esa primera iteración (ver el disparador 3). Si el usuario no pidió usar el grafo en este
+   proyecto, **pregúntale** antes de crearlo.
 
 ### 2. Durante el trabajo: leer y comentar
 
@@ -65,8 +64,12 @@ desde ahí (`graph.cmd install` en Windows). Detalles en el README.
 
 ### 3. Al cerrar una iteración: escribir (antes de responder y antes de cada commit)
 
+0. **Si el proyecto aún no tiene grafo**, créalo y escríbelo en la misma llamada:
+   `graph init --yes && graph multiedit <<'LOTE' ...`. No hace falta `--dry-run` ni `graph incomplete`
+   antes: ya sabes qué carpetas creaste, `init` imprime lo que excluyó y los índices por escribir, y
+   `multiedit` avisa de los que sigan incompletos. Lo que sobre se saca después con `graph ignore`.
 1. `graph incomplete <rutas tocadas>`: lista los índices por escribir, cada uno con su motivo
-   (sin `## Propósito`; archivos que entraron o salieron; enlaces que ya no resuelven). Un archivo como
+   (sin `## Propósito`; archivos que entraron o salieron; enlaces que dejaron de resolver). Un archivo como
    ruta pide la carpeta que lo contiene. Con eso basta para saber qué cambió: no hace falta otro comando.
 2. Por cada carpeta que tocaste, decide si el cambio altera lo que su índice dice: el propósito, una
    relación o una regla. Si solo cambió el cuerpo de funciones, el índice no se toca.
@@ -128,7 +131,7 @@ LOTE
 
 | Comando | Qué hace |
 | :--- | :--- |
-| `graph init [--yes] [--dry-run] [--exclude P] [--no-git]` | Crea o reconcilia `.graph` completo en la carpeta actual. Muestra una vista previa de exclusiones; `--yes` para no preguntar. |
+| `graph init [--yes] [--dry-run] [--exclude P] [--no-git]` | Crea o reconcilia `.graph` completo en la carpeta actual: un índice por carpeta con sus listas y secciones vacías, y los cinco documentos de `Estado_Proyecto/`. Imprime lo que entra, lo que excluye y los índices por escribir; `--yes` para no preguntar, `--dry-run` solo para ver. |
 | `graph add [ruta]` | Reconcilia una carpeta (por defecto, la actual): registra los archivos nuevos, crea los índices de las carpetas nuevas y pone al día las listas de los existentes. |
 | `graph multiedit [-f lote] [--keep]` | Escribe secciones de varios índices y documentos de un lote (stdin o archivo), pone las fechas y confirma cada uno. Ver [`graph multiedit`](#graph-multiedit). |
 | `graph populate [ruta]` | Materializa lo que dice el JSON (índices y sus listas). No sobreescribe contenido. |
@@ -168,15 +171,16 @@ El estado es de la carpeta, no de cada archivo.
 
 - **ok**: tiene `## Propósito` y la carpeta tiene los mismos archivos que cuando se confirmó.
 - **desactualizado**: desde la última confirmación a la carpeta le entraron o salieron archivos (un
-  renombre es las dos cosas), un enlace del índice apunta a un archivo o función que ya no existe, o el
-  índice se escribió a mano y nunca se confirmó.
+  renombre es las dos cosas), un enlace del índice que entonces resolvía apunta a un archivo o función
+  que ya no existe, o el índice se escribió a mano y nunca se confirmó.
   **Editar el cuerpo de un archivo no lo desactualiza**: decidir si ese cambio altera lo que el índice
   dice es el paso 2 del cierre. El hash de cada archivo se guarda solo para que `graph diff` diga cuáles cambiaron.
 - **faltante**: el índice no existe o su `## Propósito` está vacío.
 - **trivial**: sin propósito, pero la carpeta no tiene archivos propios que lo pidan: ninguno (solo
   subcarpetas) o todos caen en `.graph/trivial`. Cuenta como completa.
 - **huérfano**: el índice sigue, pero la carpeta ya no existe (`graph prune`).
-- **pendiente por crear** (en enlaces): un `[[...]]` apunta a algo que todavía no existe (típico desde Plan).
+- **pendiente por crear** (en enlaces): un `[[...]]` apunta a algo que todavía no existe (una carpeta
+  planeada, típico desde Plan). Se avisa, pero no desactualiza el índice que lo contiene.
 
 ### Triviales
 
@@ -210,8 +214,18 @@ puede enlazar, pero no cuenta para pedirle contenido a su carpeta: una carpeta d
 
 ### Plantillas
 
-Para un índice basta esta página: su formato es el del ejemplo de [`graph multiedit`](#graph-multiedit).
-Los documentos de `Estado_Proyecto/` ya nacen con sus secciones y una línea que dice qué va en cada una.
+Para escribir basta esta página: no hace falta leer los documentos ni las plantillas antes. El formato
+de un índice es el del ejemplo de [`graph multiedit`](#graph-multiedit), y los documentos de
+`Estado_Proyecto/` nacen con estas secciones, que se llenan una por una (`=== Estado_Proyecto/Estado.md#Hecho ===`):
+
+| Documento | Secciones | Qué va |
+| :--- | :--- | :--- |
+| `Estado.md` | `Hecho`, `En curso`, `Falta`, `Siguientes pasos` | Fotografía del ahora: se sobreescribe, no se acumula. |
+| `Plan.md` | Una `## nombre_snake & Nombre Legible` por frente de trabajo, con bloques `###` y tareas `- [ ]`; `Completado` | Cola de trabajo. Un bloque cerrado se mueve entero a `Completado`. |
+| `Decisiones.md` | Una `## titulo_en_snake_case` por decisión (se agrega con `=== Estado_Proyecto/Decisiones.md ===`) | `**Carpetas que afecta:**` con enlaces, y el porqué con las alternativas descartadas. |
+| `Tecnologias.md` | Una `## nombre_snake & Nombre Legible` por tecnología en uso | Cómo se usa en el proyecto, ventajas, desventajas y por qué se eligió. |
+| `Arquitectura.md` | `Hardware`, `Tecnología`, `Componentes`, cada una con sus `###` | Dónde corre, qué se explota de cada tecnología y cómo se arma el software. |
+
 Las plantillas de `plantillas/` (junto a este archivo) traen las reglas finas de cada formato. **Lee una
 solo si dudas, la primera vez que la uses; si ya está en tu contexto, no la releas**:
 

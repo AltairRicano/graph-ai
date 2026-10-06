@@ -7,7 +7,8 @@ vuelo comparando el índice con el filesystem.
 - trivial: sin propósito, pero la carpeta no tiene archivos propios que lo pidan
   (ninguno, o todos caen en `.graph/trivial`)
 - desactualizado: desde la última confirmación a la carpeta le entraron o salieron
-  archivos, o un enlace del índice dejó de resolver
+  archivos, o un enlace del índice que entonces resolvía dejó de hacerlo. Un enlace a
+  algo que todavía no existe no desactualiza: solo es un "pendiente por crear"
 - ok: todo lo demás
 Editar el cuerpo de un archivo no cambia el estado: el hash de cada archivo solo
 sirve para que `graph diff` diga cuáles se modificaron.
@@ -35,6 +36,7 @@ HUERFANO = "huérfano"
 TRIVIAL = "trivial"
 
 CONFIRMED = "archivos_confirmados"  # atributo del nodo índice: archivos directos al confirmar
+CONFIRMED_LINKS = "enlaces_confirmados"  # enlaces del índice que resolvían al confirmar
 
 # un índice es "extenso" si su cuerpo pasa de este piso y además pesa más que el código de su carpeta
 EXTENSO_MIN_CHARS = 4000
@@ -79,6 +81,16 @@ class Report:
 
     def describe(self, rels: list[str]) -> list[str]:
         return [self.folders[r].describe() if r in self.folders else (r or ".") for r in rels]
+
+
+def link_key(link: parser.Link) -> str:
+    return f"{link.target.strip()}#{(link.section or '').strip()}"
+
+
+def working_links(scan) -> list[str]:
+    """Claves de los enlaces de un documento que hoy resuelven, sección incluida."""
+    bad = {id(link) for link, _ in scan.pending}
+    return sorted({link_key(link) for link, _ in scan.resolved if id(link) not in bad})
 
 
 def twin_has_content(cache: TwinCache, node_id: str) -> bool:
@@ -172,7 +184,7 @@ def folder_state(root: Path, graph: Graph, cache: TwinCache, rel: str, files: li
             st.state = DESACTUALIZADO
     if broken_links:
         st.state = DESACTUALIZADO
-        st.reasons.append("1 enlace que no resuelve" if broken_links == 1 else f"{broken_links} enlaces que no resuelven")
+        st.reasons.append("1 enlace que dejó de resolver" if broken_links == 1 else f"{broken_links} enlaces que dejaron de resolver")
     return st
 
 
@@ -257,7 +269,9 @@ def report(root: Path, graph: Graph, scopes: list[str] | None = None, cache: Twi
             for link in scan.no_alias:
                 rep.sin_alias.append(PendingRef(node_id, link.line + 1, link.raw, "sin texto a mostrar"))
             if node["tipo"] == "indice" and not is_estado(node_id):
-                broken[node_id] = len(scan.pending) + len(scan.ambiguous)
+                # solo cuenta lo que resolvía al confirmar: un enlace a algo que aún no existe es un pendiente
+                before = set(node.get(CONFIRMED_LINKS) or ())
+                broken[node_id] = sum(1 for link, _ in scan.pending + scan.ambiguous if link_key(link) in before)
 
     rels = set(on_disk)
     for node_id, node in graph.nodes.items():

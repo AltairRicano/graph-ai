@@ -3,8 +3,9 @@
 Para índices y documentos editados a mano (`graph multiedit` ya confirma lo que
 escribe). Carpeta: exige que su índice tenga `## Propósito`; guarda qué archivos
 tiene hoy la carpeta (`archivos_confirmados`, contra eso se mide si entran o
-salen archivos) y el hash de cada uno (para `graph diff`), y regenera las
-aristas del índice. Documento de Estado_Proyecto: solo regenera aristas.
+salen archivos), el hash de cada uno (para `graph diff`) y qué enlaces del
+índice resuelven (`enlaces_confirmados`, para notar si uno deja de hacerlo), y
+regenera las aristas del índice. Documento de Estado_Proyecto: solo regenera aristas.
 En ambos casos mueve `fecha_actualizacion` del header (frontmatter) a hoy; las
 fechas de cada sección son independientes y no se tocan.
 Acepta varias rutas y las valida todas antes de confirmar ninguna. Un archivo
@@ -17,7 +18,7 @@ from pathlib import Path
 
 from grafo_ia import graph_io, states, templates, trivial
 from grafo_ia.commands._common import cwd_of, root_of
-from grafo_ia.edges import Resolver, TwinCache, regenerate
+from grafo_ia.edges import Resolver, TwinCache, regenerate, scan_links
 from grafo_ia.errors import GraphError
 from grafo_ia.exclusion import Exclusion
 from grafo_ia.graph_io import Graph
@@ -50,7 +51,11 @@ def confirm(root: Path, graph: Graph, cache: TwinCache, t: Target, resolver: Res
                 except OSError:
                     continue
         graph.dirty = True
+    resolver = resolver or Resolver(graph.nodes)
     added, removed = regenerate(graph, cache, t.node_id, resolver)
+    if t.kind == "indice":
+        graph.nodes[t.node_id][states.CONFIRMED_LINKS] = states.working_links(
+            scan_links(graph, resolver, cache, t.node_id, root=root))
     return files, added, removed
 
 

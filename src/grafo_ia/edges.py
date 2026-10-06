@@ -165,7 +165,10 @@ def scan_links(graph: Graph, resolver: Resolver, cache: TwinCache, source_id: st
             else:
                 out.pending.append((link, "no existe el destino"))
             continue
-        if check_sections and link.section:
+        if root is not None and graph.tipo(target_id) == "codigo" and not (root / target_id).is_file():
+            # el nodo sigue en el grafo hasta la próxima reconciliación, pero el archivo ya no está
+            out.pending.append((link, f"{target_id} ya no existe"))
+        elif check_sections and link.section:
             if graph.tipo(target_id) == "codigo":
                 if root is not None and not code_has_name(root, target_id, link.section):
                     out.pending.append((link, f"'{link.section}' ya no aparece en {target_id}"))

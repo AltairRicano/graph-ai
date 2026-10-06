@@ -15,7 +15,7 @@ import sys
 import time
 from collections import Counter
 
-from grafo_ia import graph_io, settings, trivial
+from grafo_ia import graph_io, settings, states, trivial
 from grafo_ia.commands import hooks
 from grafo_ia.commands._common import cwd_of, plural
 from grafo_ia.commands.populate import populate
@@ -171,6 +171,10 @@ def run(args) -> int:
     print(f"grafo: {nombre} ({ghash}) en {root / GRAPH_DIR}")
     if installed:
         print("hooks instalados: " + ", ".join(installed))
+    # lo que sigue es escribir: se dice aquí para no gastar otro comando en preguntarlo
+    todo = states.report(root, graph_io.load(root), links=False).faltantes
+    if todo:
+        print(f"índices por escribir ({len(todo)}): " + ", ".join(r or "." for r in todo))
 
     if use_git:
         hooks.mirror_commit(root, "graph init", hooks.main_head(root))

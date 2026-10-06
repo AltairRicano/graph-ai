@@ -261,10 +261,11 @@ def test_status_cuadra_con_incomplete(linked, run):
     inc = run(linked, "incomplete")[1]
     counts = {line.rsplit(" (", 1)[0]: int(line.rsplit("(", 1)[1].rstrip(")")) for line in inc.splitlines() if not line.startswith(" ")}
     assert int(status["faltante"]) == counts["faltantes"]
-    assert int(status["desactualizado"]) == counts["desactualizados"] == 2  # la raíz (enlace roto) y features (entró un archivo)
+    assert int(status["desactualizado"]) == counts["desactualizados"] == 1  # features: entró un archivo
     assert int(status["pendiente por crear"]) == counts["pendientes por crear"] >= 1
     assert int(status["huérfano"]) == counts["huérfanos"] == 1
-    assert "src/features: entraron: nuevo.go" in inc and ".: 1 enlace que no resuelve" in inc
+    assert "src/features: entraron: nuevo.go" in inc
+    assert "[[src/nada.go|nada]] (no existe el destino)" in inc and ".: " not in inc.split("faltantes")[0]  # pendiente, no desactualiza
 
 
 def test_incomplete_reporta_sin_alias(linked, run):

@@ -167,7 +167,7 @@ def test_borrar_codigo_quita_su_nodo(initialized, run):
     assert "src/features/login.go" not in g.nodes and "src/main.go" not in g.nodes
     assert "src/features/features.md" in g.nodes  # la carpeta sigue (tiene a pagos)
     assert "[[src/main.go|main.go]]" not in read_twin(initialized, SRC)  # sale de la lista
-    assert "src: salieron: main.go; 1 enlace que no resuelve" in run(initialized, "incomplete")[1]
+    assert "src: salieron: main.go; 1 enlace que dejó de resolver" in run(initialized, "incomplete")[1]
     assert_sano(initialized)
 
 
