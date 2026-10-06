@@ -9,10 +9,11 @@ Léela al lanzar una flota de subagentes en paralelo, o si eres uno de ellos.
   consolidador que resuma a los demás: se pierde contexto en ese resumen.
 - El cuerpo es el contenido **completo** de la tarea (el hallazgo, la auditoría, el análisis), no un
   resumen: la razón de escribirlo en disco es que las respuestas largas se cortan por límite de contexto.
-- `agentes/` en la raíz está **excluida del grafo por defecto**: el reporte no tiene gemelo, no se
-  corre `graph add` ni `graph update` sobre él. Es markdown y se lee directo.
-- Un agente de **corrección** (que edita un archivo real) no escribe reporte: edita el archivo, pone
-  al día su gemelo y corre `graph update <ruta>`.
+- `agentes/` en la raíz está **excluida del grafo por defecto**: el reporte no entra a ningún índice, no
+  se corre `graph add` ni `graph update` sobre él. Es markdown y se lee directo.
+- Un agente de **corrección** (que edita un archivo real) no escribe reporte: edita el archivo, deja
+  el porqué en un comentario del código y, si el cambio altera lo que dice el índice de la carpeta, lo
+  pone al día con `graph multiedit`.
 - `agentes/` es operativo, no producto: el proyecto debe tenerla en su `.gitignore`.
 
 ## Nombre de archivo

@@ -112,7 +112,7 @@ en `~/.claude/settings.json`:
 ```
 graph-ai/
 ├── .github/workflows/   CI: pruebas e instalador en Linux, macOS y Windows
-├── plantillas/          formatos de escritura: gemelo de código, cada documento de
+├── plantillas/          formatos de escritura: índice de carpeta, cada documento de
 │                        Estado_Proyecto y reportes de agentes (un archivo por formato)
 ├── scripts/             instalador multiplataforma (install.py)
 ├── src/grafo_ia/        paquete Python del CLI: parser, grafo, exclusiones, estados,
