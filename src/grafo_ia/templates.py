@@ -1,9 +1,4 @@
-"""Render de cáscaras: índices y documentos de Estado_Proyecto.
-
-El índice de una carpeta es su reporte: nace con `## Propósito` y
-`## Relaciones` vacías (las llena el agente) y con las listas estructurales
-(las mantiene `populate`). El de Estado_Proyecto solo lleva listas.
-Los archivos de código no tienen documento: son nodos sin cáscara.
+"""Cáscaras de los documentos de Estado_Proyecto y fechas del frontmatter.
 
 Las plantillas del vault (Templater) son el diseño; aquí viven las versiones
 empaquetadas con nombre final y sin sintaxis de Templater.
@@ -17,13 +12,6 @@ from importlib import resources
 
 from grafo_ia import parser
 
-INDEX_FOLDERS = "📁 Carpetas"
-INDEX_FILES = "📄 Archivos"
-STRUCTURAL_SECTIONS = (INDEX_FOLDERS, INDEX_FILES)
-INDEX_PURPOSE = "Propósito"
-INDEX_RELATIONS = "Relaciones"
-REPORT_SECTIONS = (INDEX_PURPOSE, INDEX_RELATIONS)
-
 _FECHA_ACT = re.compile(r"^(fecha_actualizacion:[ \t]*)[^\r\n]*(\r?\n)?$")
 
 
@@ -31,77 +19,19 @@ def today() -> str:
     return _dt.date.today().isoformat()
 
 
-def frontmatter(tipo: str, fecha: str) -> str:
-    return f"---\ntipo: {tipo}\nfecha_elaboracion: {fecha}\nfecha_actualizacion: {fecha}\n---\n"
-
-
 def render_estado(name: str, fecha: str | None = None) -> str:
     text = resources.files("grafo_ia").joinpath("templates", f"{name}.md").read_text(encoding="utf-8")
     return text.replace("{{fecha}}", fecha or today())
 
 
-def index_item(node_id: str, label: str) -> str:
-    return f"- [[{node_id}|{label}]]"
-
-
-def _index_sections(folders: list[tuple[str, str]], files: list[tuple[str, str]]) -> dict[str, list[str]]:
-    return {
-        INDEX_FOLDERS: [index_item(i, lbl) for i, lbl in folders],
-        INDEX_FILES: [index_item(i, lbl) for i, lbl in files],
-    }
-
-
-def render_index(folders: list[tuple[str, str]], files: list[tuple[str, str]], fecha: str | None = None,
-                 report: bool = True) -> str:
-    """`report=False` para el índice que solo es estructura (el de Estado_Proyecto)."""
-    out = frontmatter("indice", fecha or today())
-    if report:
-        out += "".join(f"## {title}\n\n" for title in REPORT_SECTIONS)
-    sections = _index_sections(folders, files)
-    for i, (title, items) in enumerate(sections.items()):
-        out += f"## {title}\n"
-        out += "".join(item + "\n" for item in items)
-        if i == 0:
-            out += "\n"
-    return out
-
-
-def update_index(text: str, folders: list[tuple[str, str]], files: list[tuple[str, str]], fecha: str | None = None) -> str | None:
-    """Reescribe solo las listas estructurales, conservando cualquier otra prosa.
-
-    Devuelve el texto nuevo, o None si las listas ya estaban al día.
-    `fecha_actualizacion` solo se mueve cuando la lista cambió.
-    """
+def _body(text: str) -> str:
     doc = parser.parse(text)
-    lines = list(doc.lines)
-    if lines and not lines[-1].endswith("\n"):
-        lines[-1] += "\n"
-    wanted = _index_sections(folders, files)
-    changed = False
-    # de abajo hacia arriba para no mover los índices de línea pendientes
-    found = {h.text: h for h in doc.headings if h.level == 2 and h.text in STRUCTURAL_SECTIONS}
-    for title in sorted(found, key=lambda t: -found[t].line):
-        h = found[title]
-        # la lista termina en el siguiente heading de cualquier nivel
-        end = next((x.line for x in doc.headings if x.line > h.line), len(lines))
-        body = lines[h.line + 1 : end]
-        current = [ln.rstrip("\r\n") for ln in body if ln.strip()]
-        items = wanted[title]
-        if current != items:
-            trailing_blank = end < len(lines)
-            new_body = [item + "\n" for item in items] + (["\n"] if trailing_blank else [])
-            lines[h.line + 1 : end] = new_body
-            changed = True
-    for title in STRUCTURAL_SECTIONS:
-        if title not in found:
-            if lines and lines[-1].strip():
-                lines.append("\n")
-            lines.append(f"## {title}\n")
-            lines.extend(item + "\n" for item in wanted[title])
-            changed = True
-    if not changed:
-        return None
-    return touch_updated("".join(lines), fecha)
+    return "".join(doc.lines[doc.body_start:]).strip()
+
+
+def is_shell(name: str, text: str) -> bool:
+    """¿El documento sigue como nació? Solo cuenta el cuerpo: las fechas del frontmatter no."""
+    return _body(text) == _body(render_estado(name))
 
 
 def touch_updated(text: str, fecha: str | None = None) -> str:

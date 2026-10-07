@@ -1,8 +1,7 @@
-"""Parser de markdown de índices y documentos: frontmatter, headings ("gatos"), secciones y enlaces.
+"""Parser de markdown de los documentos: frontmatter, headings ("gatos") y secciones.
 
 Reglas:
-- Nada dentro de un bloque de código (``` o ~~~) cuenta: ni headings ni enlaces.
-  El código inline (`...`) tampoco cuenta para enlaces.
+- Nada dentro de un bloque de código (``` o ~~~) cuenta como heading.
 - Una sección va desde su heading hasta el siguiente de igual o mayor jerarquía
   (menos o igual cantidad de `#`), o hasta el final del documento.
 - Un heading `nombre_snake_case & Nombre Legible` se puede direccionar por el
@@ -19,7 +18,6 @@ from grafo_ia.errors import AmbiguousError, NotFoundError
 _HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$")
 _CLOSING_HASHES = re.compile(r"(?:^|[ \t]+)#+[ \t]*$")
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
-_LINK = re.compile(r"(!?)\[\[([^\[\]\n]*?)\]\]")
 _FM_KEY = re.compile(r"^([^\s:#-][^:]*):[ \t]*(.*)$")
 _FM_ITEM = re.compile(r"^[ \t]*-[ \t]*(.*)$")
 
@@ -40,22 +38,6 @@ class Heading:
 
 
 @dataclass
-class Link:
-    line: int
-    start: int  # columna del `[[` (o del `!` si es embed)
-    end: int  # columna después de `]]`
-    target: str  # parte de ruta, "" para `[[#Sección]]`
-    section: str | None  # todo lo que va después del primer `#`
-    alias: str | None
-    embed: bool = False
-    heading: int | None = None  # índice en Doc.headings de la sección que lo contiene
-
-    @property
-    def raw(self) -> str:
-        return render_link(self.target, self.section, self.alias, self.embed)
-
-
-@dataclass
 class Doc:
     text: str
     lines: list[str]  # con sus saltos de línea
@@ -63,16 +45,6 @@ class Doc:
     code: list[bool]  # línea dentro de un bloque de código
     headings: list[Heading] = field(default_factory=list)
     meta: dict = field(default_factory=dict)
-
-    def heading_for_line(self, line: int) -> int | None:
-        """Índice del heading cuya sección (la más interna) contiene la línea."""
-        best = None
-        for i, h in enumerate(self.headings):
-            if h.line <= line < h.end:
-                best = i
-            elif h.line > line:
-                break
-        return best
 
 
 def heading_ident(text: str) -> str | None:
@@ -83,16 +55,6 @@ def heading_ident(text: str) -> str | None:
 
 def heading_matches(text: str, name: str) -> bool:
     return text == name or heading_ident(text) == name
-
-
-def render_link(target: str, section: str | None, alias: str | None, embed: bool = False) -> str:
-    out = "!" if embed else ""
-    out += "[[" + target
-    if section is not None:
-        out += "#" + section
-    if alias is not None:
-        out += "|" + alias
-    return out + "]]"
 
 
 def _parse_frontmatter(lines: list[str]) -> tuple[dict, int]:
@@ -166,70 +128,8 @@ def parse(text: str, frontmatter: bool = True) -> Doc:
                 h.end = nxt.line
                 break
     for i in range(body_start):
-        code[i] = True  # el frontmatter tampoco aporta headings ni enlaces
+        code[i] = True  # el frontmatter tampoco aporta headings
     return Doc(text, lines, body_start, code, headings, meta)
-
-
-def is_empty(text: str) -> bool:
-    """Vacío = sin nada después del frontmatter. Es la definición de `faltante`."""
-    doc = parse(text)
-    return "".join(doc.lines[doc.body_start :]).strip() == ""
-
-
-def _mask_inline_code(line: str) -> str:
-    """Reemplaza el contenido de spans de código inline por espacios."""
-    out = list(line)
-    i = 0
-    n = len(line)
-    while i < n:
-        if line[i] == "`":
-            j = i
-            while j < n and line[j] == "`":
-                j += 1
-            ticks = line[i:j]
-            close = line.find(ticks, j)
-            while close != -1 and close + len(ticks) < n and line[close + len(ticks)] == "`":
-                close = line.find(ticks, close + len(ticks) + 1)
-            if close == -1:
-                i = j
-                continue
-            for k in range(i, close + len(ticks)):
-                out[k] = " "
-            i = close + len(ticks)
-        else:
-            i += 1
-    return "".join(out)
-
-
-def links(doc: Doc) -> list[Link]:
-    result: list[Link] = []
-    for i, line in enumerate(doc.lines):
-        if doc.code[i] or "[[" not in line:
-            continue
-        masked = _mask_inline_code(line)
-        for m in _LINK.finditer(masked):
-            inner = line[m.start(2) : m.end(2)]
-            alias = None
-            if "|" in inner:
-                inner, alias = inner.split("|", 1)
-                if inner.endswith("\\"):  # `[[a\|b]]` dentro de tablas
-                    inner = inner[:-1]
-            section = None
-            if "#" in inner:
-                inner, section = inner.split("#", 1)
-            result.append(
-                Link(
-                    line=i,
-                    start=m.start(),
-                    end=m.end(),
-                    target=inner.strip(),
-                    section=section.strip() if section is not None else None,
-                    alias=alias,
-                    embed=bool(m.group(1)),
-                    heading=doc.heading_for_line(i),
-                )
-            )
-    return result
 
 
 def find_headings(doc: Doc, name: str, within: tuple[int, int] | None = None) -> list[int]:
@@ -262,18 +162,3 @@ def find_section(doc: Doc, name: str) -> Heading:
 def section_text(doc: Doc, name: str) -> str:
     h = find_section(doc, name)
     return "".join(doc.lines[h.line : h.end])
-
-
-def has_section(doc: Doc, name: str) -> bool:
-    try:
-        find_section(doc, name)
-        return True
-    except AmbiguousError:
-        return True  # existe, aunque repetida
-    except NotFoundError:
-        return False
-
-
-def section_range(doc: Doc, name: str) -> tuple[int, int]:
-    h = find_section(doc, name)
-    return h.line, h.end

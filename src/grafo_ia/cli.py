@@ -1,7 +1,6 @@
 """CLI `graph`: despachador de subcomandos y códigos de salida.
 
-0 = nada que bloquear, 1 = hallazgos que bloquean (pre-commit estricto, doctor),
-2 = error de uso o de precondición.
+0 = bien, 2 = error de uso o de precondición.
 """
 
 from __future__ import annotations
@@ -10,34 +9,14 @@ import argparse
 import sys
 
 from grafo_ia import __version__
-from grafo_ia.commands import (
-    add,
-    config,
-    diff,
-    doctor,
-    hooks,
-    ignore,
-    incomplete,
-    init,
-    multiedit,
-    mv,
-    populate,
-    prune,
-    query,
-    relate,
-    remove,
-    rename,
-    trivial,
-    update,
-    watcher,
-)
+from grafo_ia.commands import init, multiedit, query
 from grafo_ia.errors import EXIT_USAGE, GraphError
 
-MODULES = (init, add, populate, ignore, trivial, remove, update, multiedit, mv, prune, relate, rename, config, query, diff, incomplete, doctor, watcher, hooks)
+MODULES = (init, query, multiedit)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="graph", description="Grafo de un proyecto de código para contexto de IA: los archivos son los nodos y cada carpeta tiene su índice.")
+    p = argparse.ArgumentParser(prog="graph", description="Estado de un proyecto de código para contexto de IA: cinco documentos en .graph/Estado_Proyecto.")
     p.add_argument("-C", metavar="DIR", help="correr como si se invocara desde DIR")
     p.add_argument("--version", action="version", version=f"grafo_ia {__version__}")
     sub = p.add_subparsers(dest="command", metavar="<comando>")

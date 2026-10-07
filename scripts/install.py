@@ -4,9 +4,8 @@ Pensado para clonar el repo donde uno guarda sus repos (por ejemplo
 `~/repos/graph`) e instalar desde ahí:
 
 1. Crea un entorno virtual propio en `<repo>/.venv` (con `uv` si está, si no con
-   `venv` + `pip`) e instala el paquete en modo editable con el extra `watch`.
-   Editable: un `git pull` basta para actualizar; `./graph install` otra vez
-   solo si cambian las dependencias.
+   `venv` + `pip`) e instala el paquete en modo editable. No tiene dependencias.
+   Editable: un `git pull` basta para actualizar.
 2. Pone el comando `graph` en el PATH del usuario: un symlink en `~/.local/bin`
    (POSIX) o un `graph.cmd` en `%USERPROFILE%\\.local\\bin` (Windows). Nunca pisa
    un `graph` ajeno sin `--force`.
@@ -73,9 +72,8 @@ def run(cmd: list[str]) -> None:
         raise InstallError(f"falló: {' '.join(cmd)}\n{r.stdout}{r.stderr}")
 
 
-def ensure_venv(python: str, with_watch: bool) -> None:
-    extra = "[watch]" if with_watch else ""
-    target = f"{REPO}{extra}"
+def ensure_venv(python: str) -> None:
+    target = str(REPO)
     uv = shutil.which("uv")
     if uv:
         if not venv_python().exists():
@@ -179,7 +177,7 @@ def cmd_install(args) -> int:
     if not args.python and sys.version_info < MIN_PY:
         raise InstallError(f"se necesita Python {'.'.join(map(str, MIN_PY))}+ (este es {sys.version.split()[0]}); usa --python")
     check_launcher_free(args.bin_dir, venv_entry(), args.force)
-    ensure_venv(args.python or sys.executable, not args.no_watch)
+    ensure_venv(args.python or sys.executable)
     entry = venv_entry()
     if not entry.exists():
         raise InstallError(f"no apareció {entry} tras instalar")
@@ -193,7 +191,7 @@ def cmd_install(args) -> int:
         say(skill_hint())
     for w in path_warnings(args.bin_dir, launcher):
         say(f"[AVISO] {w}")
-    say("Para actualizar: `git pull` en el repo (vuelve a correr ./graph install si cambian dependencias).")
+    say("Para actualizar: `git pull` en el repo.")
     return 0
 
 
@@ -232,7 +230,6 @@ def build_parser() -> argparse.ArgumentParser:
         s.add_argument("--force", action="store_true", help="reemplazar un `graph` o una skill que ya existan")
         if name == "install":
             s.add_argument("--python", help="intérprete para el entorno virtual (por defecto, el que corre esto)")
-            s.add_argument("--no-watch", action="store_true", help="sin el extra watch (watchdog, psutil)")
         else:
             s.add_argument("--purge", action="store_true", help="borrar también el entorno virtual del repo")
     return p

@@ -1,3 +1,3 @@
-"""grafo_ia: grafo de un proyecto de código para contexto de IA (archivos como nodos, un índice por carpeta)."""
+"""grafo_ia: estado de un proyecto de código para contexto de IA (cinco documentos en .graph/Estado_Proyecto)."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

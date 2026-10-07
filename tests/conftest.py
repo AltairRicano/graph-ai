@@ -1,19 +1,13 @@
-"""Apoyo de pruebas: proyecto falso, CLI en proceso y `assert_sano()`."""
+"""Apoyo de pruebas: proyecto falso y CLI en proceso."""
 
 from __future__ import annotations
 
-import os
-import subprocess
 from pathlib import Path
 
 import pytest
 
-from grafo_ia import graph_io
 from grafo_ia.cli import main
-from grafo_ia.commands.doctor import diagnose
-from grafo_ia.paths import folder_id, twin_path
-
-FM = "---\ntipo: indice\nfecha_elaboracion: 2026-01-01\nfecha_actualizacion: 2026-01-01\n---\n"
+from grafo_ia.paths import doc_path
 
 
 def write(root: Path, rel: str, content: str = "x\n") -> Path:
@@ -23,35 +17,8 @@ def write(root: Path, rel: str, content: str = "x\n") -> Path:
     return p
 
 
-def write_twin(root: Path, node_id: str, body: str, fm: str = FM) -> Path:
-    p = twin_path(root, node_id)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(fm + body, encoding="utf-8")
-    return p
-
-
-def read_twin(root: Path, node_id: str) -> str:
-    return twin_path(root, node_id).read_text(encoding="utf-8")
-
-
-def write_index(root: Path, rel: str, body: str, purpose: str | None = "Para qué sirve.") -> Path:
-    """Escribe a mano el reporte del índice de `rel` (sin confirmarlo), conservando sus listas."""
-    p = twin_path(root, folder_id(rel))
-    text = p.read_text(encoding="utf-8")
-    head, _, tail = text.partition("## Propósito\n")
-    lists = tail[tail.index("## 📁 Carpetas"):]
-    report = (f"## Propósito\n{purpose}\n\n" if purpose else "## Propósito\n\n") + body.rstrip("\n") + "\n\n"
-    p.write_text(head + report + lists, encoding="utf-8")
-    return p
-
-
-def assert_sano(root: Path) -> None:
-    problems = diagnose(root)
-    assert problems == [], "\n".join(problems)
-
-
-def load(root: Path) -> graph_io.Graph:
-    return graph_io.load(root)
+def read_doc(root: Path, name: str) -> str:
+    return doc_path(root, name).read_text(encoding="utf-8")
 
 
 @pytest.fixture
@@ -71,28 +38,15 @@ def run(capsys):
 
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
-    """Proyecto falso: código, subcarpetas anidadas y una carpeta excluida."""
+    """Proyecto falso con algo de código."""
     root = tmp_path / "proyecto"
-    write(root, "Makefile", "# Proyecto\n")
     write(root, "src/main.go", "package main\n\nfunc main() {}\n")
-    write(root, "src/features/login.go", "package features\n")
-    write(root, "src/features/pagos/cobro.go", "package pagos\n")
-    write(root, "node_modules/lib/index.js", "module.exports = 1\n")
-    write(root, ".env", "SECRET=1\n")
+    write(root, "src/pagos/cobro.go", "package pagos\n")
     return root
 
 
 @pytest.fixture
 def initialized(project: Path, run) -> Path:
-    code, out = run(project, "init", "--yes", "--no-git")
+    code, out = run(project, "init")
     assert code == 0, out
     return project
-
-
-def git(cwd: Path, *args: str, check: bool = True, input: str | None = None) -> subprocess.CompletedProcess:
-    env = dict(os.environ)
-    env.update({
-        "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "t@t",
-        "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "t@t",
-    })
-    return subprocess.run(["git", *args], cwd=str(cwd), check=check, text=True, capture_output=True, env=env, input=input)
