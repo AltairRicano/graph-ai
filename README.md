@@ -1,4 +1,8 @@
-# grafo_ia — Grafo para IA
+# grafo_ia — Grafo para IA (versión de gemelos)
+
+> Esta rama conserva la versión anterior, para los proyectos que ya tienen un `.graph` con gemelos. La versión
+> vigente está en `main`: guarda solo el estado del proyecto y, cuando encuentra un `.graph` de este formato,
+> le pasa cada comando a `graph-gemelos`, que es el `graph` de esta rama puesto en el PATH con ese nombre.
 
 Grafo bidireccional de gemelos markdown para dar contexto a agentes de IA sobre un proyecto de código,
 sin ensuciar el código con comentarios extensos. Inspirado en el grafo de Obsidian, pensado para el modo headless.
