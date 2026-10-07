@@ -1,26 +1,22 @@
-# grafo_ia — Grafo para IA
+# grafo_ia — Estado de proyecto para IA
 
-Contexto de un proyecto de código para agentes de IA, sin duplicar el código en documentación. Los nodos del
-grafo son los propios archivos de código; lo que el código no dice vive en un índice markdown por carpeta y
-en el estado del proyecto. Pensado para el modo headless.
+Contexto de un proyecto de código para agentes de IA, sin duplicar el código en documentación. Lo que el
+código no puede decir (qué está hecho y qué falta, por qué se decidió cada cosa, con qué se construye y
+dónde corre) vive en cinco documentos markdown dentro de `.graph/Estado_Proyecto/`, que se leen y se escriben
+con el comando `graph`. Pensado para el modo headless.
 
-- Los archivos de código no tienen un documento gemelo: qué hace cada función y por qué va en sus comentarios.
-- Cada carpeta tiene un índice en `.graph/` con su propósito, las relaciones entre sus archivos y con otras
-  carpetas, y las reglas que cruzan archivos. Un documento por carpeta, tenga 3 archivos o 30.
-- `.graph/Estado_Proyecto/` guarda el estado, el plan, las decisiones, las tecnologías y la arquitectura.
-- Los `[[enlaces]]` de índices y documentos apuntan a archivos de código reales, a funciones o a otras
-  carpetas, y forman un grafo dirigido en `.graph/index.json` (formato node-link de networkx).
-- El estado es de la carpeta: un índice queda desactualizado cuando a su carpeta le entran o salen archivos
-  o cuando uno de sus enlaces deja de resolver, no cada vez que alguien edita un archivo.
-- `graph multiedit` escribe secciones de muchos índices y documentos en una sola llamada a partir de un lote
-  de texto plano, pone las fechas y confirma cada uno.
-- `.graph` es un repo git anidado sin remoto, alineado con el repo de código mediante hooks.
+- `Estado.md`, `Plan.md`, `Decisiones.md`, `Tecnologias.md` y `Arquitectura.md`: nada más.
+- No hay un documento por archivo ni por carpeta: qué hace cada función y por qué va en sus comentarios, y
+  el código se lee directo.
+- `graph multiedit` escribe secciones de varios documentos en una sola llamada a partir de un lote de texto
+  plano, y pone las fechas.
+- Los reportes de subagentes van en `agentes/`, en la raíz del proyecto, uno por agente.
 
-El manual de uso (catálogo de comandos y formatos) está en [SKILL.md](SKILL.md).
+El manual de uso (cuándo leer, cuándo escribir y formatos) está en [SKILL.md](SKILL.md).
 
 ## Instalación
 
-Requiere Python 3.10+ y git. Clona el repo donde guardas tus repos y corre el instalador:
+Requiere Python 3.10+. No tiene dependencias. Clona el repo donde guardas tus repos y corre el instalador:
 
 ```bash
 git clone https://github.com/AltairRicano/graph-ai.git ~/repos/graph
@@ -31,7 +27,7 @@ cd ~/repos/graph
 `./graph install` hace tres cosas:
 
 1. Crea un entorno virtual propio en `.venv/` dentro del repo (con `uv` si lo tienes, si no con `venv` + `pip`)
-   e instala `grafo_ia` en modo editable con el extra `watch` (`watchdog`, `psutil`).
+   e instala `grafo_ia` en modo editable.
 2. Pone el comando `graph` en tu PATH: un symlink en `~/.local/bin/graph` (Windows: `graph.cmd` en
    `%USERPROFILE%\.local\bin`). Si ahí ya hay un `graph` que no es este, no lo pisa sin `--force`.
    Te avisa si la carpeta no está en tu PATH, o si otro `graph` (por ejemplo el de GNU plotutils) le gana.
@@ -42,11 +38,9 @@ cd ~/repos/graph
 ./graph install --skill-dir ~/.claude/skills      # Claude Code: enlaza el repo como ~/.claude/skills/grafo-ia
 ```
 
-Opciones: `--bin-dir DIR` (otra carpeta para el comando), `--python RUTA` (otro intérprete), `--no-watch`
-(sin Watcher), `--force`.
+Opciones: `--bin-dir DIR` (otra carpeta para el comando), `--python RUTA` (otro intérprete), `--force`.
 
-**Actualizar:** `git pull` en el repo. Al ser editable, no hace falta reinstalar salvo que cambien las dependencias
-(correr `./graph install` otra vez es seguro).
+**Actualizar:** `git pull` en el repo. Al ser editable, no hace falta reinstalar.
 
 **Desinstalar:** `./graph uninstall [--skill-dir DIR] [--purge]`. `--purge` borra también el `.venv/` del repo.
 Los `.graph` de tus proyectos no se tocan.
@@ -55,79 +49,67 @@ Desde el repo, `./graph <comando>` también funciona sin tener nada en el PATH: 
 
 Para desarrollo: `uv venv && uv pip install -e '.[test]'`.
 
-## Uso rápido
+## Uso
 
 ```bash
 cd mi-proyecto
-graph init                        # vista previa de exclusiones y confirmación
-graph status                      # índices por estado
-graph get src/pagos --expand      # el índice de una carpeta y los de sus vecinos
-graph neighbors src/pagos/cobro.go  # relaciones declaradas de un archivo
-graph multiedit <<'LOTE'          # escribe varios índices y los confirma
-=== src/pagos#Propósito ===
-Cobra los pedidos y deja el asiento que usa facturación.
-=== src/pagos#Relaciones ===
-- [[src/pagos/cobro.go|cobro.go]] → [[src/db|db]]: cada cobro corre en una sola transacción.
+graph init                         # crea .graph/Estado_Proyecto con los cinco documentos
+graph get Estado                   # lee un documento (o varios: graph get Estado Plan)
+graph get Estado#Falta             # o una sola sección
+graph status                       # los cinco documentos con su última actualización
+graph multiedit <<'LOTE'           # escribe varios documentos en una llamada
 === Estado_Proyecto/Estado.md#Hecho ===
 - Cobro con descuentos.
+=== Estado_Proyecto/Decisiones.md ===
+## dinero_en_centavos
+**Carpetas que afecta:** `src/pagos`
+
+Con flotantes los totales no cuadran.
 LOTE
-# ... más tarde, tras cambiar el código ...
-graph incomplete                  # índices por escribir, cada uno con su motivo
-graph diff src/pagos              # archivos que entraron, salieron o cambiaron desde la última confirmación
-graph update src/pagos            # confirmar un índice editado a mano
-graph ignore '*.csv'              # sacar del grafo lo que no aporta contexto
-graph trivial '*.sql'             # dejarlo en el grafo, pero sin pedirle contenido a su carpeta
 ```
+
+| Comando | Qué hace |
+| :--- | :--- |
+| `graph init` | Crea `.graph/Estado_Proyecto/` con los cinco documentos. Correrlo de nuevo no sobreescribe nada. |
+| `graph get <documento>[#sección]...` | Imprime uno o varios documentos, o una sección. |
+| `graph status` | Lista los cinco documentos con su última actualización y cuáles siguen sin escribir. |
+| `graph multiedit [-f lote] [--keep]` | Escribe secciones de varios documentos de un lote (stdin o archivo). |
+
+El comando busca el `.graph` más cercano subiendo por las carpetas padre, como git. Un documento se nombra
+`Estado_Proyecto/Estado.md` o solo `Estado`.
 
 ### Lotes de `graph multiedit`
 
-Cada entrada empieza con una línea separadora y sigue con el contenido tal cual, sin escapar nada. El blanco es
-una carpeta (su índice) o un documento de `Estado_Proyecto/`, con la ruta desde la raíz del proyecto.
+Cada entrada empieza con una línea separadora y sigue con el contenido tal cual, sin escapar nada.
 
 | Separador | Efecto |
 | :--- | :--- |
-| `=== ruta#sección ===` | Reemplaza esa sección; en un índice la crea si no existe. |
-| `=== ruta#sección [append] ===` | Agrega al final de esa sección. |
-| `=== ruta ===` | Agrega al final de lo escrito (en un índice, antes de sus listas). |
-| `=== ruta [override] ===` | Reemplaza todo lo escrito; en un índice conserva las listas de carpetas y archivos. |
+| `=== documento#sección ===` | Reemplaza esa sección. En `Decisiones` y `Tecnologias`, si no existe la crea. |
+| `=== documento#sección [append] ===` | Agrega al final de esa sección. |
+| `=== documento ===` | Agrega al final del documento. |
+| `=== documento [override] ===` | Reemplaza todo lo escrito. |
 
-El frontmatter, las listas de carpetas y archivos y las líneas `**Elaboración:** | **Actualización:**` los
-mantiene el comando. Antes de leer el lote reconcilia el proyecto, así que las carpetas y archivos nuevos entran
-solos al grafo. El lote se valida entero antes de escribir (un error no deja nada a medias) y al final reporta
-enlaces por corregir, índices que siguen incompletos e índices más largos que el código de su carpeta. Un archivo
-de código no es un blanco válido. Con `-f lote.txt` lee el lote de un archivo y lo borra al aplicarlo (`--keep`
-lo conserva).
+El frontmatter y las líneas `**Elaboración:** | **Actualización:**` los mantiene el comando. El lote se valida
+entero antes de escribir: un error no deja nada a medias. Con `-f lote.txt` lee el lote de un archivo y lo borra
+al aplicarlo (`--keep` lo conserva).
 
-### Cierre de turno en Claude Code
-
-`graph hook claude-stop` es un hook `Stop`: si una carpeta con código sin commitear tiene su índice faltante o
-desactualizado, bloquea el cierre del turno una vez y le dice al agente cuáles son. Es opcional y se declara
-en `~/.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "Stop": [{ "hooks": [{ "type": "command", "command": "graph hook claude-stop" }] }]
-  }
-}
-```
+`.graph/` y `agentes/` son operativos: van en el `.gitignore` de cada proyecto.
 
 ## Estructura del repositorio
 
 ```
 graph-ai/
 ├── .github/workflows/   CI: pruebas e instalador en Linux, macOS y Windows
-├── plantillas/          formatos de escritura: índice de carpeta, cada documento de
-│                        Estado_Proyecto y reportes de agentes (un archivo por formato)
+├── plantillas/          reglas de escritura de cada documento de Estado_Proyecto y de los
+│                        reportes de agentes (un archivo por formato)
 ├── scripts/             instalador multiplataforma (install.py)
-├── src/grafo_ia/        paquete Python del CLI: parser, grafo, exclusiones, reconciliación
-│   │                    y estados por carpeta
-│   ├── commands/        un módulo por subcomando (init, multiedit, update, diff, ignore, ...)
-│   └── templates/       cáscaras de Estado_Proyecto que crea `graph init`
+├── src/grafo_ia/        paquete Python del CLI: parser de markdown, rutas y escritura de archivos
+│   ├── commands/        un módulo por grupo de subcomandos (init, get y status, multiedit)
+│   └── templates/       cáscaras de los cinco documentos que crea `graph init`
 ├── tests/               pruebas con pytest
 ├── graph, graph.cmd     lanzadores del repo (POSIX y Windows)
-├── SKILL.md             manual de uso: flujo, catálogo de comandos y convenciones
-└── pyproject.toml       metadatos del paquete y extras (watch, nx, test)
+├── SKILL.md             manual de uso: cuándo leer, cuándo escribir y formatos
+└── pyproject.toml       metadatos del paquete
 ```
 
 ## Pruebas

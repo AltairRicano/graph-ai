@@ -6,13 +6,11 @@ Léela al agregar, avanzar o cerrar trabajo planeado.
 
 - Jerarquía: **Sección** `## nombre_snake & Nombre Legible` → **Bloque** `###` → **Tareas** como
   checklist `- [ ]` (nunca headings).
-- Una tarea puede enlazar a código que todavía no existe: el enlace queda como *pendiente por
-  crear* y `graph incomplete` lo lista hasta que el archivo exista.
+- Una tarea nombra el código que toca con su ruta (`src/pagos/cobro.go`), exista ya o no.
 - Al completar un bloque, **se corta entero** y se pega al final bajo `## Completado`, con
   `**Sección de origen:**` y `**Cerrado:** AAAA-MM-DD`. Así un `tail` muestra el cierre más reciente.
-- Se escribe con `graph multiedit` (`=== Estado_Proyecto/Plan.md#Sección ===` reemplaza una sección;
-  sin `#Sección` agrega al final), que confirma él mismo. Solo si lo editas a mano:
-  `graph update Estado_Proyecto/Plan.md`.
+- Se escribe con `graph multiedit`: `=== Estado_Proyecto/Plan.md#Sección ===` reemplaza una sección;
+  sin `#Sección` agrega al final.
 
 ## Formato
 
@@ -20,7 +18,7 @@ Léela al agregar, avanzar o cerrar trabajo planeado.
 ## pagos & Pagos
 
 ### cobro_con_tarjeta
-- [ ] Validar el token en [[src/pagos/cobro.go.md#validar_token|validar_token]]
+- [ ] Validar el token en `validar_token` (`src/pagos/cobro.go`)
 - [x] Tabla de transacciones
 
 ---
@@ -28,7 +26,7 @@ Léela al agregar, avanzar o cerrar trabajo planeado.
 ## Completado
 
 ### reembolsos
-**Sección de origen:** [[#pagos|Pagos]]
+**Sección de origen:** pagos
 **Cerrado:** AAAA-MM-DD
 - [x] ...
 ```
