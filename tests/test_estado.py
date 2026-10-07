@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import os
+import sys
+
+import pytest
+
 from grafo_ia import templates
+from grafo_ia.cli import main
 from grafo_ia.paths import ESTADO_DOCS, doc_path
 
 from conftest import read_doc
@@ -68,3 +74,19 @@ def test_status_fecha_y_sin_escribir(initialized, run):
     assert "2026-01-01" in lines["Estado.md"] and "sin escribir" not in lines["Estado.md"]
     assert HOY in lines["Decisiones.md"] and "sin escribir" in lines["Decisiones.md"]
     assert "falta" in lines["Plan.md"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="el CLI anterior falso es un script de shell")
+def test_un_graph_de_gemelos_se_delega_al_cli_anterior(project, tmp_path, monkeypatch, capfd):
+    (project / ".graph").mkdir()
+    (project / ".graph" / "index.json").write_text("{}", encoding="utf-8")
+    fake = tmp_path / "bin" / "graph-gemelos"
+    fake.parent.mkdir()
+    fake.write_text('#!/bin/sh\necho "gemelos: $*"\nexit 7\n', encoding="utf-8")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake.parent}{os.pathsep}{os.environ['PATH']}")
+    assert main(["-C", str(project / "src"), "incomplete", "src"]) == 7  # un comando que aquí ya no existe
+    assert f"gemelos: -C {project / 'src'} incomplete src" in capfd.readouterr().out
+    monkeypatch.setenv("PATH", str(tmp_path / "vacio"))
+    assert main(["-C", str(project), "status"]) == 2
+    assert "graph-gemelos" in capfd.readouterr().err

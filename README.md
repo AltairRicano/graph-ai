@@ -95,6 +95,13 @@ al aplicarlo (`--keep` lo conserva).
 
 `.graph/` y `agentes/` son operativos: van en el `.gitignore` de cada proyecto.
 
+### Proyectos con un `.graph` anterior
+
+La versión anterior guardaba un gemelo markdown por archivo de código y un `index.json`. Un proyecto que ya
+tiene ese `.graph` puede seguir con ella: se instala aparte desde la rama `gemelos`, con su comando en el PATH
+como `graph-gemelos`. Cuando `graph` encuentra un `.graph` con `index.json`, le pasa el comando tal cual a
+`graph-gemelos`.
+
 ## Estructura del repositorio
 
 ```

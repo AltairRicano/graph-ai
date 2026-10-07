@@ -8,7 +8,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from grafo_ia import __version__
+from grafo_ia import __version__, legacy
 from grafo_ia.commands import init, multiedit, query
 from grafo_ia.errors import EXIT_USAGE, GraphError
 
@@ -32,6 +32,10 @@ def main(argv: list[str] | None = None) -> int:
             stream.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
         except (AttributeError, ValueError):
             pass
+    argv = sys.argv[1:] if argv is None else list(argv)
+    code = legacy.dispatch(argv)  # un `.graph` de la versión de gemelos lo atiende el CLI anterior
+    if code is not None:
+        return code
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

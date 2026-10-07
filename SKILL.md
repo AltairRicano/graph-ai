@@ -1,6 +1,6 @@
 ---
 name: grafo-ia
-description: Estado de un proyecto de código guardado en `.graph/Estado_Proyecto/` (Estado, Plan, Decisiones, Tecnologías, Arquitectura), que se lee y se escribe con el CLI `graph`. Cárgala solo en tres casos: (1) al iniciar sesión si el proyecto ya tiene .graph, junto con `graph get Estado_Proyecto/Estado.md`; (2) al terminar una iteración completa, justo antes de escribir el estado y antes de responder, salvo que ya la hayas leído en la sesión; (3) cuando el usuario lo pide. En un proyecto sin .graph no la cargues al empezar: haz el trabajo y cárgala al cerrar esa primera iteración. Si su contenido sigue en tu contexto, no la releas.
+description: Estado de un proyecto de código guardado en `.graph/Estado_Proyecto/` (Estado, Plan, Decisiones, Tecnologías, Arquitectura), que se lee y se escribe con el CLI `graph`. Cárgala solo en tres casos: (1) al iniciar sesión si el proyecto ya tiene .graph, junto con `graph get Estado_Proyecto/Estado.md`; (2) al terminar una iteración completa, justo antes de escribir el estado y antes de responder, salvo que ya la hayas leído en la sesión; (3) cuando el usuario lo pide. En un proyecto sin .graph no la cargues al empezar: haz el trabajo y cárgala al cerrar esa primera iteración. Si su contenido sigue en tu contexto, no la releas. No aplica si `.graph` contiene `index.json`: ese proyecto es de la versión de gemelos y usa la skill `grafo-ia-gemelos`.
 ---
 
 # Estado del proyecto (`graph`)
@@ -19,6 +19,10 @@ propio código, al programarla. El código se lee directo.
 
 El CLI busca el `.graph` más cercano subiendo por los padres (como git). Si `graph` no está en el PATH:
 clonar https://github.com/AltairRicano/graph-ai y correr `./graph install` desde ahí.
+
+Si `.graph` contiene `index.json`, el proyecto es de la versión anterior (un gemelo markdown por
+archivo): esta página no aplica. Ahí `graph` le pasa cada comando a `graph-gemelos` y el manual es la
+skill `grafo-ia-gemelos`.
 
 ## Al iniciar una sesión
 
