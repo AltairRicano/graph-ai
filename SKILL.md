@@ -82,6 +82,8 @@ LOTE
 | `=== documento#sección [append] ===` | Agrega al final de esa sección. |
 | `=== documento ===` | Agrega al final del documento (una sección nueva lleva su `## nombre`). |
 | `=== documento [override] ===` | Reemplaza todo lo escrito. |
+| `=== documento#sección [remove] ===` | Borra esa sección entera (una decisión o tecnología que ya no aplica). Sin contenido. |
+| `=== Plan#bloque [move Plan#Completado] ===` | Corta el bloque entero y lo pega al final del destino, en el mismo documento, ajustando el nivel de los headings. El contenido es opcional: va bajo el heading movido (`**Cerrado:** ...`). |
 
 - El documento se nombra `Estado_Proyecto/Estado.md` o solo `Estado`.
 - **No escribas frontmatter ni líneas `**Elaboración:** | **Actualización:**`**: las pone el comando
@@ -95,22 +97,11 @@ LOTE
 | Comando | Qué hace |
 | :--- | :--- |
 | `graph init` | Crea `.graph/Estado_Proyecto/` con los cinco documentos. Correrlo de nuevo no sobreescribe nada. |
-| `graph get <documento>[#sección]...` | Imprime uno o varios documentos, o una sección. |
+| `graph get <documento>[#sección]...` | Imprime uno o varios documentos, o una sección. Con `-s` solo lista los headings: sirve para decidir qué leer. |
 | `graph status` | Lista los cinco documentos con su última actualización y cuáles siguen sin escribir. |
 | `graph multiedit [-f lote] [--keep]` | Escribe secciones de varios documentos de un lote y pone las fechas. |
 
 Códigos de salida: `0` bien, `2` error de uso o de precondición (por ejemplo, no hay `.graph`).
-
-## Subagentes: `agentes/`
-
-- Un subagente que **audita, investiga o reporta hallazgos sin editar código** escribe su reporte
-  completo en `agentes/<fecha>_<nombre-agente>_<id-agente>.md`, en la raíz del proyecto. Nunca un agente
-  consolidador que resuma a los demás: las respuestas largas se cortan y en el resumen se pierde contexto.
-- Un subagente de **corrección** no escribe reporte: edita el archivo y deja el porqué en un comentario.
-- `Estado_Proyecto/` lo escribe el agente principal, que es quien sabe qué se pidió y qué quedó pendiente.
-- `agentes/` es operativo, no producto: va en el `.gitignore` del proyecto.
-
-Formato del reporte en `plantillas/reporte_agente.md` (junto a este archivo).
 
 ## Plantillas
 
@@ -120,6 +111,7 @@ si dudas, y no la releas si ya está en tu contexto.
 
 ## Qué no hace
 
+- No es un reporte de agentes ni un documento por archivo: solo estos cinco documentos.
 - No lee el código ni sabe qué cambió: qué documento tocar lo decides tú con la lista de arriba.
 - No avisa si un documento quedó viejo; `graph status` solo muestra la fecha de su última actualización.
 - `.graph/` no se sube al repositorio: va en el `.gitignore` del proyecto.

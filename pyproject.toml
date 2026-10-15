@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "grafo-ia"
-version = "0.3.0"
+version = "0.4.0"
 description = "Estado de un proyecto de código para dar contexto a agentes de IA: cinco documentos en .graph/Estado_Proyecto que se escriben en una sola llamada."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -9,6 +9,9 @@ Léela al agregar, avanzar o cerrar trabajo planeado.
 - Una tarea nombra el código que toca con su ruta (`src/pagos/cobro.go`), exista ya o no.
 - Al completar un bloque, **se corta entero** y se pega al final bajo `## Completado`, con
   `**Sección de origen:**` y `**Cerrado:** AAAA-MM-DD`. Así un `tail` muestra el cierre más reciente.
+- Cerrar un bloque lo hace el comando, no tú: `=== Estado_Proyecto/Plan.md#bloque [move Plan#Completado] ===`
+  con `**Sección de origen:**` y `**Cerrado:**` como contenido (se insertan bajo el heading). Ajusta el nivel
+  de los headings y deja el resto del Plan intacto.
 - Se escribe con `graph multiedit`: `=== Estado_Proyecto/Plan.md#Sección ===` reemplaza una sección;
   sin `#Sección` agrega al final.
 

@@ -17,16 +17,28 @@ def read_doc(root: Path, name: str) -> str:
         raise GraphError(f"{doc_id(name)} no existe (`graph init` lo vuelve a crear)")
 
 
+def outline(doc: parser.Doc, section: str | None) -> str:
+    """Los headings del documento (o de una sección) con sangría por nivel: sirve para saber qué leer."""
+    heads = doc.headings
+    if section:
+        top = parser.find_section(doc, section)
+        heads = [h for h in heads if top.line <= h.line < top.end]
+    return "\n".join("  " * (h.level - 1) + h.text for h in heads) or "(sin secciones)"
+
+
 # ---- get ---------------------------------------------------------------------
 def run_get(args) -> int:
     root = root_of(args)
     targets = [resolve_doc(a) for a in args.rutas]  # un nombre mal escrito falla antes de imprimir nada
     for i, (name, section) in enumerate(targets):
         doc = parser.parse(read_doc(root, name))
-        content = parser.section_text(doc, section) if section else doc.text
         if i:
             print()
         print(f"==> {doc_id(name)}{'#' + section if section else ''} <==")
+        if args.sections:
+            print(outline(doc, section))
+            continue
+        content = parser.section_text(doc, section) if section else doc.text
         print(content.rstrip("\n"))
     return 0
 
@@ -51,6 +63,7 @@ def run_status(args) -> int:
 def register(sub) -> None:
     p = sub.add_parser("get", help="imprime uno o varios documentos de Estado_Proyecto, o una sección")
     p.add_argument("rutas", nargs="+", metavar="documento[#sección]")
+    p.add_argument("-s", "--sections", action="store_true", help="solo lista las secciones, sin su contenido")
     p.set_defaults(func=run_get)
 
     p = sub.add_parser("status", help="los cinco documentos con su última actualización")

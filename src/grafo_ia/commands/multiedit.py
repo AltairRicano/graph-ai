@@ -23,6 +23,12 @@ separadora y sigue con el contenido tal cual:
   También pone él la línea `**Elaboración:** | **Actualización:**` de cada
   sección fechada (conserva la elaboración, mueve la actualización solo si el
   texto cambió).
+- `documento#sección [remove]` borra esa sección entera (una decisión caduca, una
+  tecnología que salió). Sin contenido.
+- `documento#sección [move documento#destino]` corta la sección entera y la pega al
+  final del destino, en el mismo documento (un bloque cerrado de Plan va a
+  `Completado`). Los headings se ajustan al nivel del destino. El contenido es
+  opcional: si viene, se inserta bajo el heading movido (`**Cerrado:** ...`).
 - Se valida todo el lote antes de escribir: con un solo error no se aplica nada.
 """
 
@@ -41,8 +47,10 @@ from grafo_ia.paths import ESTADO_DOCS, doc_path, resolve_doc
 
 APPEND = "append"
 OVERRIDE = "override"
+REMOVE = "remove"
+MOVE = "move"
 
-_SEPARATOR = re.compile(r"^=== (?P<target>\S.*?)(?: \[(?P<mode>append|override)\])? ===[ \t]*$")
+_SEPARATOR = re.compile(r"^=== (?P<target>\S.*?)(?: \[(?P<mode>append|override|remove|move[ \t]+(?P<dest>\S.*?))\])? ===[ \t]*$")
 _DATE_LINE = re.compile(r"^\*\*Elaboración:\*\*[ \t]*(?P<elab>[^|\s]*)[ \t]*\|[ \t]*\*\*Actualización:\*\*[ \t]*(?P<act>\S*)[ \t]*$")
 
 # nivel de heading que lleva línea de fechas, por tipo de documento (los demás no llevan)
@@ -57,6 +65,7 @@ class Entry:
     mode: str | None  # None = por defecto según el blanco
     content: str
     line: int  # 1-based, la del separador
+    dest: str | None = None  # solo con `move`: documento#sección de destino
 
 
 @dataclass
@@ -97,7 +106,8 @@ def parse_batch(text: str) -> tuple[list[Entry], list[str]]:
             continue
         if m:
             close()
-            current = Entry(m.group("target").strip(), m.group("mode"), "", i)
+            mode = m.group("mode")
+            current = Entry(m.group("target").strip(), MOVE if m.group("dest") else mode, "", i, m.group("dest"))
             entries.append(current)
             buf = []
             continue
@@ -208,6 +218,9 @@ def apply_entry(plan: Plan, entry: Entry, section: str | None) -> None:
         else:
             plan.text = _appended(head, body, entry.content)
         return
+    if entry.mode in (REMOVE, MOVE):
+        _remove_or_move(plan, entry, section, doc, lines)
+        return
     content = _strip_own_heading(entry.content, section)
     if not content.strip():
         raise GraphError("la entrada solo trae el heading, sin contenido")
@@ -229,6 +242,55 @@ def apply_entry(plan: Plan, entry: Entry, section: str | None) -> None:
         lines[h.line + 1 : h.end] = _block(content, h.end < len(lines))
     plan.sections += 1
     plan.text = "".join(lines)
+
+
+def _remove_or_move(plan: Plan, entry: Entry, section: str, doc: parser.Doc, lines: list[str]) -> None:
+    """Borra una sección o la corta y la pega al final de otra del mismo documento.
+
+    Existe porque reescribir a mano un bloque de Plan para archivarlo en
+    `Completado` cuesta tokens y pierde texto; el movimiento lo hace el comando.
+    """
+    h = parser.find_section(doc, section)
+    if entry.mode == REMOVE:
+        if entry.content.strip():
+            raise GraphError("`[remove]` no lleva contenido")
+        lines[h.line : h.end] = []
+        plan.sections += 1
+        plan.text = "".join(lines)
+        return
+    dest_name, dest_section = resolve_doc(entry.dest)
+    if dest_name != plan.name or dest_section is None:
+        raise GraphError(f"`[move]` mueve dentro de {plan.name}: el destino debe ser `{plan.name}#sección`")
+    d = parser.find_section(doc, dest_section)
+    if d.line >= h.line and d.line < h.end:
+        raise GraphError("el destino está dentro de la sección que se mueve")
+    block = list(lines[h.line : h.end])
+    shift = d.level + 1 - h.level
+    for i, ln in enumerate(block):
+        if doc.code[h.line + i]:
+            continue
+        m = parser._HEADING.match(ln.rstrip("\r\n"))
+        if m:
+            level = min(6, max(1, len(m.group(1)) + shift))
+            block[i] = "#" * level + ln.lstrip(" ")[len(m.group(1)):]
+    while block and not block[-1].strip():
+        block.pop()
+    if entry.content.strip():
+        block[1:1] = [entry.content.strip("\n") + "\n"]
+    block[-1] = block[-1] if block[-1].endswith("\n") else block[-1] + "\n"
+    # se quita primero el origen y el destino se vuelve a localizar en el texto ya recortado
+    del lines[h.line : h.end]
+    rest = parser.parse("".join(lines))
+    d = parser.find_section(rest, dest_section)
+    end = d.end
+    while end > d.line + 1 and not rest.lines[end - 1].strip():
+        end -= 1
+    tail = ["\n"] if rest.lines[end - 1].strip() else []
+    after = ["\n"] if d.end < len(rest.lines) else []
+    new = list(rest.lines)
+    new[end : d.end] = tail + block + after
+    plan.sections += 1
+    plan.text = "".join(new)
 
 
 # ---- comando -----------------------------------------------------------------
@@ -279,8 +341,10 @@ def run(args) -> int:
                 name, section = resolve_doc(e.target)
             except GraphError as err:
                 raise GraphError(f"{err}. Lo que explica el código va en un comentario del propio código")
-            if not e.content.strip():
+            if not e.content.strip() and e.mode not in (REMOVE, MOVE):
                 raise GraphError("entrada sin contenido")
+            if e.mode in (REMOVE, MOVE) and section is None:
+                raise GraphError(f"`[{e.mode}]` necesita `documento#sección`")
             if name not in plans:
                 plans[name] = _plan(root, name)
             apply_entry(plans[name], e, section)

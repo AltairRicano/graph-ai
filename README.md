@@ -10,7 +10,6 @@ con el comando `graph`. Pensado para el modo headless.
   el código se lee directo.
 - `graph multiedit` escribe secciones de varios documentos en una sola llamada a partir de un lote de texto
   plano, y pone las fechas.
-- Los reportes de subagentes van en `agentes/`, en la raíz del proyecto, uno por agente.
 
 El manual de uso (cuándo leer, cuándo escribir y formatos) está en [SKILL.md](SKILL.md).
 
@@ -71,7 +70,7 @@ LOTE
 | Comando | Qué hace |
 | :--- | :--- |
 | `graph init` | Crea `.graph/Estado_Proyecto/` con los cinco documentos. Correrlo de nuevo no sobreescribe nada. |
-| `graph get <documento>[#sección]...` | Imprime uno o varios documentos, o una sección. |
+| `graph get [-s] <documento>[#sección]...` | Imprime uno o varios documentos, o una sección. Con `-s` solo lista los headings. |
 | `graph status` | Lista los cinco documentos con su última actualización y cuáles siguen sin escribir. |
 | `graph multiedit [-f lote] [--keep]` | Escribe secciones de varios documentos de un lote (stdin o archivo). |
 
@@ -88,12 +87,14 @@ Cada entrada empieza con una línea separadora y sigue con el contenido tal cual
 | `=== documento#sección [append] ===` | Agrega al final de esa sección. |
 | `=== documento ===` | Agrega al final del documento. |
 | `=== documento [override] ===` | Reemplaza todo lo escrito. |
+| `=== documento#sección [remove] ===` | Borra esa sección entera. |
+| `=== documento#sección [move documento#destino] ===` | Corta la sección y la pega al final del destino, en el mismo documento (por ejemplo, un bloque cerrado de `Plan` a `Completado`). |
 
 El frontmatter y las líneas `**Elaboración:** | **Actualización:**` los mantiene el comando. El lote se valida
 entero antes de escribir: un error no deja nada a medias. Con `-f lote.txt` lee el lote de un archivo y lo borra
 al aplicarlo (`--keep` lo conserva).
 
-`.graph/` y `agentes/` son operativos: van en el `.gitignore` de cada proyecto.
+`.graph/` es operativo: va en el `.gitignore` de cada proyecto.
 
 ### Proyectos con un `.graph` anterior
 
@@ -107,8 +108,7 @@ como `graph-gemelos`. Cuando `graph` encuentra un `.graph` con `index.json`, le 
 ```
 graph-ai/
 ├── .github/workflows/   CI: pruebas e instalador en Linux, macOS y Windows
-├── plantillas/          reglas de escritura de cada documento de Estado_Proyecto y de los
-│                        reportes de agentes (un archivo por formato)
+├── plantillas/          reglas de escritura de cada documento de Estado_Proyecto (un archivo por documento)
 ├── scripts/             instalador multiplataforma (install.py)
 ├── src/grafo_ia/        paquete Python del CLI: parser de markdown, rutas y escritura de archivos
 │   ├── commands/        un módulo por grupo de subcomandos (init, get y status, multiedit)

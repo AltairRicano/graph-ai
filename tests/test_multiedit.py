@@ -133,3 +133,58 @@ def test_documento_borrado_nace_de_su_cascara(initialized, batch):
     doc_path(initialized, "Estado").unlink()
     assert batch(initialized, "=== Estado#Hecho ===\n- De vuelta.\n")[0] == 0
     assert "## Hecho\n- De vuelta.\n\n## En curso" in read_doc(initialized, "Estado")
+
+
+# ---- remove y move -----------------------------------------------------------
+def _plan_con_bloque(initialized, batch):
+    code, out = batch(initialized, (
+        "=== Plan#Completado [append] ===\n### viejo\n**Cerrado:** 2026-01-01\n- [x] a\n"
+        "=== Plan ===\n## pagos & Pagos\n\n### cobro\n- [x] validar\n- [ ] cobrar\n\n### reembolsos\n- [ ] x\n"))
+    assert code == 0, out
+
+
+def test_move_archiva_un_bloque_en_completado(initialized, batch):
+    _plan_con_bloque(initialized, batch)
+    code, out = batch(initialized, "=== Plan#cobro [move Plan#Completado] ===\n**Cerrado:** 2026-10-15\n")
+    assert code == 0, out
+    plan = read_doc(initialized, "Plan")
+    assert plan.index("## Completado") < plan.index("### viejo") < plan.index("### cobro") < plan.index("## pagos")
+    assert "- [ ] cobrar\n\n## pagos & Pagos\n\n### reembolsos" in plan  # el resto queda separado y completo
+    assert "### cobro\n**Cerrado:** 2026-10-15\n- [x] validar" in plan
+    assert plan.count("### cobro") == 1 and "### viejo" in plan
+
+
+def test_move_ajusta_el_nivel_del_heading(initialized, batch):
+    _plan_con_bloque(initialized, batch)
+    code, out = batch(initialized, "=== Plan#pagos [move Plan#Completado] ===\n")
+    assert code == 0, out
+    plan = read_doc(initialized, "Plan")
+    assert plan.index("## Completado") < plan.index("### pagos & Pagos") < plan.index("#### cobro") < plan.index("#### reembolsos")
+
+
+def test_move_no_entra_en_si_mismo_ni_sale_del_documento(initialized, batch):
+    _plan_con_bloque(initialized, batch)
+    antes = read_doc(initialized, "Plan")
+    for lote in ("=== Plan#pagos [move Plan#cobro] ===\n", "=== Plan#cobro [move Estado#Hecho] ===\n"):
+        code, out = batch(initialized, lote)
+        assert code == 2 and "no se aplicó nada" in out
+    assert read_doc(initialized, "Plan") == antes
+
+
+def test_remove_borra_una_seccion(initialized, batch):
+    batch(initialized, "=== Decisiones ===\n## a\nuno\n=== Decisiones ===\n## b\ndos\n")
+    code, out = batch(initialized, "=== Decisiones#a [remove] ===\n")
+    assert code == 0, out
+    dec = read_doc(initialized, "Decisiones")
+    assert "## a" not in dec and "## b\n" in dec and "dos" in dec
+
+
+def test_remove_exige_seccion_y_no_lleva_contenido(initialized, batch):
+    for lote in ("=== Decisiones [remove] ===\n", "=== Decisiones#nada [remove] ===\n", "=== Estado#Falta [remove] ===\ntexto\n"):
+        code, out = batch(initialized, lote)
+        assert code == 2 and "no se aplicó nada" in out
+
+
+def test_get_sections_lista_los_headings(initialized, run):
+    code, out = run(initialized, "get", "-s", "Estado")
+    assert code == 0 and "Hecho\n" in out and "Falta\n" in out and "Lo que ya está completo" not in out

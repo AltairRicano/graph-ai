@@ -10,6 +10,7 @@ Léela al registrar una decisión que no es obvia solo con leer el código.
   afecta a todo el proyecto por igual.
 - Descripción tan extensa como haga falta: el porqué, las alternativas descartadas y sus costos. También
   van aquí los valores por defecto que elegiste sin preguntar.
+- Una entrada que ya no aplica se borra con `=== Estado_Proyecto/Decisiones.md#nombre [remove] ===` (sin contenido).
 - Se escribe con `graph multiedit`: `=== Estado_Proyecto/Decisiones.md#Sección ===` reemplaza una sección;
   sin `#Sección` agrega al final.
 - La línea `**Elaboración:** | **Actualización:**` de cada `##` la pone `multiedit`: no la escribas.
