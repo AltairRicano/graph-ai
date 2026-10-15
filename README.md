@@ -94,7 +94,8 @@ El frontmatter y las líneas `**Elaboración:** | **Actualización:**` los manti
 entero antes de escribir: un error no deja nada a medias. Con `-f lote.txt` lee el lote de un archivo y lo borra
 al aplicarlo (`--keep` lo conserva).
 
-`.graph/` es operativo: va en el `.gitignore` de cada proyecto.
+`.graph/` se versiona con el proyecto: es documentación de contexto, y el estado actualizado entra en el mismo
+commit que el código que describe. (Los proyectos con gemelos, ver abajo, lo siguen ignorando.)
 
 ### Proyectos con un `.graph` anterior
 

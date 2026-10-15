@@ -114,4 +114,4 @@ si dudas, y no la releas si ya está en tu contexto.
 - No es un reporte de agentes ni un documento por archivo: solo estos cinco documentos.
 - No lee el código ni sabe qué cambió: qué documento tocar lo decides tú con la lista de arriba.
 - No avisa si un documento quedó viejo; `graph status` solo muestra la fecha de su última actualización.
-- `.graph/` no se sube al repositorio: va en el `.gitignore` del proyecto.
+- `.graph/` se versiona con el proyecto: el estado actualizado entra en el mismo commit que el código que describe.
