@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import os
-import tempfile
+import secrets
+import stat
 from pathlib import Path
 
 from grafo_ia.errors import GraphError
@@ -21,11 +22,20 @@ def ensure_writable(paths) -> None:
 
 
 def write_text_atomic(path: Path, text: str) -> None:
+    """Reemplaza el archivo de una vez, con los permisos que tendría si se hubiera escrito directo.
+
+    El temporal no se crea con mkstemp: ese lo deja en 600 y, tras el replace, el documento queda ilegible
+    para el resto del equipo (en un directorio con ACL por defecto, además, con la máscara en ---). Creado
+    con 666, el sistema aplica el umask o la ACL heredada; si el documento ya existía, conserva su modo.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix=".grafo-", suffix=".tmp", dir=str(path.parent))
+    tmp = str(path.parent / f".grafo-{secrets.token_hex(8)}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
             f.write(text)
+        if path.exists():
+            os.chmod(tmp, stat.S_IMODE(path.stat().st_mode))
         os.replace(tmp, path)
     except BaseException:
         try:
